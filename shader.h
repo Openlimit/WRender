@@ -1,6 +1,7 @@
 #pragma once
-#include "gl.h"
 #include <algorithm>
+#include "gl.h"
+
 
 struct PhongShader :public IShader {
 	Vec3f light_dir;
@@ -99,7 +100,7 @@ struct GouraudShader : public IShader {
 	Vec3f varying_intensity; 
 
 	virtual Vec4f vertex(int iface, int nthvert) {
-		varying_intensity[nthvert] = std::max(0.f, model->normal(iface, nthvert).dot(light_dir)); 
+		varying_intensity[nthvert] = std::fmax(0.f, model->normal(iface, nthvert).dot(light_dir)); 
 		
 		Vec3f vert = model->vert(iface, nthvert);
 		Vec4f vert4(vert[0], vert[1], vert[2], 1);

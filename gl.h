@@ -1,8 +1,7 @@
 #pragma once
-#include "tgaimage.h"
-#include "geometry.h"
-#include "model.h"
 #include <iostream>
+#include "model.h"
+
 
 struct IShader {
     virtual Vec4f vertex(int iface, int nthvert) = 0;
@@ -48,13 +47,19 @@ struct IShader {
 class Renderer {
 public:
 	Renderer(int _width, int _height, int _viewport_x = 0, int _viewport_y = 0, int _depth = 255);
+	virtual ~Renderer() {
+		if (zbuffer != nullptr)
+			delete zbuffer;
+	}
 
 	bool render(Model* model, IShader* shader, TGAImage& image, bool is_perspective = true);
+
+	bool render(Model* model, IShader* shader, unsigned char* image, bool is_perspective = true);
 
 	void clear_zbuffer() {
 		for (int i = 0; i < screen_width * screen_height; i++)
 		{
-			zbuffer[i] = std::numeric_limits<float>::max();
+			zbuffer[i] = FLT_MAX;
 		}
 	}
 
@@ -66,4 +71,6 @@ private:
 	int screen_width, screen_height;
 
 	void triangle(Vec3f* pts, IShader* shader, TGAImage& image);
+
+	void triangle(Vec3f* pts, IShader* shader, unsigned char* image);
 };
