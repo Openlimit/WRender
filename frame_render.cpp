@@ -455,16 +455,20 @@ int main2() {
 void FrameRender::init(int width, int height) {
 	model = new Model("obj/diablo3_pose.obj", "obj/diablo3_pose_diffuse.tga",
 		"obj/diablo3_pose_nm.tga", "obj/diablo3_pose_spec.tga");
-	renderer = new Renderer(width, height);
+	renderer = new Renderer(width, height, 0, 0, 255, false);
 	shadowBuffer = new float[width * height];
 
-	Vec3f light_pos(1, 1, 2);
-	Vec3f light_dir = light_pos;
-	light_dir.normalize();
+	SpotLight *light= new SpotLight();
+	light->position = Vec3f(1, 1, 2);
+	light->color = Vec3f(1, 1, 1);
+	light->front = -Vec3f(1, 1, 2);
+	light->front.normalize();
+	light->inner_cos = 0.9;
+	light->outter_cos = 0.8;
 
 	Vec3f lookatpos(0, 0, 0);
 	Vec3f up(0, 1, 0);
-	Camera camera_light(light_pos, lookatpos, up);
+	Camera camera_light(light->position, lookatpos, up);
 
 	model_mat = Mat4f::Identity();
 	Mat4f ligth_view_mat = camera_light.get_view();
@@ -480,17 +484,28 @@ void FrameRender::init(int width, int height) {
 	Camera camera(cur_camera_pos, lookatpos, up);
 	view_mat = camera.get_view();
 
-	shadowShader = new ShadowShader();
-	shadowShader->light_dir = light_dir;
-	shadowShader->viewPos = cur_camera_pos;
-	shadowShader->model_mat = model_mat;
-	shadowShader->view_mat = view_mat;
-	shadowShader->project_mat = project_mat;
-	shadowShader->model_mat_IT = model_mat.inverse().transpose();
-	shadowShader->width = width;
-	shadowShader->height = height;
-	shadowShader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
-	shadowShader->shadowBuffer = shadowBuffer;
+	//shadowShader = new ShadowShader();
+	//shadowShader->light_dir = light_dir;
+	//shadowShader->viewPos = cur_camera_pos;
+	//shadowShader->model_mat = model_mat;
+	//shadowShader->view_mat = view_mat;
+	//shadowShader->project_mat = project_mat;
+	//shadowShader->model_mat_IT = model_mat.inverse().transpose();
+	//shadowShader->width = width;
+	//shadowShader->height = height;
+	//shadowShader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
+	//shadowShader->shadowBuffer = shadowBuffer;
+	goochShader = new GoochShader();
+	goochShader->light = dynamic_cast<Light*>(light);
+	goochShader->viewPos = cur_camera_pos;
+	goochShader->model_mat = model_mat;
+	goochShader->view_mat = view_mat;
+	goochShader->project_mat = project_mat;
+	goochShader->model_mat_IT = model_mat.inverse().transpose();
+	goochShader->width = width;
+	goochShader->height = height;
+	goochShader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
+	goochShader->shadowBuffer = shadowBuffer;
 
 	frame_width = width;
 	frame_height = height;
@@ -498,12 +513,11 @@ void FrameRender::init(int width, int height) {
 }
 
 void FrameRender::render() {
-	memset(screenBits, 0, sizeof(char) * frame_width * frame_height * 3);
 	renderer->clear_zbuffer();
 	renderer->render(model, depthShader, nullptr);
 	renderer->get_zbuffer(shadowBuffer);
 	renderer->clear_zbuffer();
-	renderer->render(model, shadowShader, screenBits);
+	renderer->render(model, goochShader, screenBits);
 }
 
 void FrameRender::release() {
@@ -513,8 +527,8 @@ void FrameRender::release() {
 		delete renderer;
 	if (depthShader != nullptr)
 		delete depthShader;
-	if (shadowShader != nullptr)
-		delete shadowShader;
+	if (goochShader != nullptr)
+		delete goochShader;
 	if (shadowBuffer != nullptr)
 		delete shadowBuffer;
 }
@@ -522,71 +536,56 @@ void FrameRender::release() {
 void FrameRender::resize(int width, int height) {
 	if (renderer != nullptr)
 		delete renderer;
-	renderer = new Renderer(width, height);
+	renderer = new Renderer(width, height, 0, 0, 255, false);
 
 	if (shadowBuffer != nullptr)
 		delete shadowBuffer;
 	shadowBuffer = new float[width * height];
 
-	shadowShader->width = width;
-	shadowShader->height = height;
-	shadowShader->shadowBuffer = shadowBuffer;
+	goochShader->width = width;
+	goochShader->height = height;
+	goochShader->shadowBuffer = shadowBuffer;
 
 	frame_width = width;
 	frame_height = height;
 }
 
-void FrameRender::turn_left() {
-	float cos_theta = std::cos(-rotate_speed);
-	float sin_theta = std::sin(-rotate_speed);
-	Mat3f rotation;
-	rotation << cos_theta, 0, sin_theta,
+void FrameRender::turn(float delta_x, float delta_y){
+	float theta_x = -2 * PI * delta_x / frame_height;
+	float theta_y = -2 * PI * delta_y / frame_height;
+
+	float cos_theta_x = std::cos(theta_x);
+	float sin_theta_x = std::sin(theta_x);
+	float cos_theta_y = std::cos(theta_y);
+	float sin_theta_y = std::sin(theta_y);
+
+	Mat3f rotation_x, rotation_y;
+
+	rotation_x << cos_theta_x, 0, sin_theta_x,
 		0, 1, 0,
-		-sin_theta, 0, cos_theta;
-	cur_camera_pos = rotation * cur_camera_pos;
-	update_camera_pos();
+		-sin_theta_x, 0, cos_theta_x;
+
+	rotation_y << 1, 0, 0,
+		0, cos_theta_y, -sin_theta_y,
+		0, sin_theta_y, cos_theta_y;
+
+	cur_camera_pos = rotation_x * rotation_y * cur_camera_pos;
+	update_camera();
 }
 
-void FrameRender::turn_right() {
-	float cos_theta = std::cos(rotate_speed);
-	float sin_theta = std::sin(rotate_speed);
-	Mat3f rotation;
-	rotation << cos_theta, 0, sin_theta,
-		0, 1, 0,
-		-sin_theta, 0, cos_theta;
-	cur_camera_pos = rotation * cur_camera_pos;
-	update_camera_pos();
+void FrameRender::zoom(float delta) {
+	float d = std::fmin(std::fmax(0.5, 1. - delta / 1200), 2);
+	cur_camera_pos = cur_camera_pos * d;
+	update_camera();
 }
 
-void FrameRender::turn_up() {
-	float cos_theta = std::cos(-rotate_speed);
-	float sin_theta = std::sin(-rotate_speed);
-	Mat3f rotation;
-	rotation << 1, 0, 0,
-		0, cos_theta, -sin_theta,
-		0, sin_theta, cos_theta;
-	cur_camera_pos = rotation * cur_camera_pos;
-	update_camera_pos();
-}
-
-void FrameRender::turn_down() {
-	float cos_theta = std::cos(rotate_speed);
-	float sin_theta = std::sin(rotate_speed);
-	Mat3f rotation;
-	rotation << 1, 0, 0,
-		0, cos_theta, -sin_theta,
-		0, sin_theta, cos_theta;
-	cur_camera_pos = rotation * cur_camera_pos;
-	update_camera_pos();
-}
-
-void FrameRender::update_camera_pos() {
+void FrameRender::update_camera() {
 	Vec3f lookatpos(0, 0, 0);
 	Vec3f up(0, 1, 0);
 	Camera camera(cur_camera_pos, lookatpos, up);
 	view_mat = camera.get_view();
 
-	shadowShader->viewPos = cur_camera_pos;
-	shadowShader->view_mat = view_mat;
-	shadowShader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
+	goochShader->viewPos = cur_camera_pos;
+	goochShader->view_mat = view_mat;
+	goochShader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
 }

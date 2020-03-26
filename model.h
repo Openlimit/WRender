@@ -19,7 +19,7 @@ public:
 	Vec3f text(int iface, int nthvert);
 	std::vector<Vec3i> face(int i);
 
-	TGAColor diffuse(Vec3f text_coord);
+	Vec4f diffuse(Vec3f text_coord);
 	Vec3f normal(Vec3f text_coord);
 	float specular(Vec3f text_coord);
 

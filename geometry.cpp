@@ -38,3 +38,11 @@ Mat4f viewport(int x, int y, int width, int height, int depth) {
 		0, 0, 0, 1;
 	return m;
 }
+
+Vec3f cal_normal(Vec3f* pts) {
+	Vec3f AB = pts[1] - pts[0];
+	Vec3f AC = pts[2] - pts[0];
+	Vec3f n = AC.cross(AB);
+	n.normalize();
+	return n;
+}

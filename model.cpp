@@ -98,11 +98,12 @@ Vec3f Model::text(int iface, int nthvert)
 
 std::vector<Vec3i> Model::face(int i) { return faces_[i]; }
 
-TGAColor Model::diffuse(Vec3f text_coord)
+Vec4f Model::diffuse(Vec3f text_coord)
 {
 	int width = diffuse_image->get_width();
 	int height = diffuse_image->get_height();
-	return diffuse_image->get(text_coord[0] * width, text_coord[1] * height);
+	TGAColor color = diffuse_image->get(text_coord[0] * width, text_coord[1] * height);
+	return Vec4f(color.r / 255., color.g / 255., color.b / 255., color.a / 255.);
 }
 
 Vec3f Model::normal(Vec3f text_coord)

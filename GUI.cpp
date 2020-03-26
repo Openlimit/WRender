@@ -183,28 +183,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			ptCur.y = HIWORD(lParam);
 			float delta_x = ptCur.x - ptPrevious.x;
 			float delta_y = ptCur.y - ptPrevious.y;
-			if (std::abs(delta_x) > std::abs(delta_y)) {
-				if (delta_x > 0)
-					frameRender->turn_left();
-				else
-					frameRender->turn_right();
-			}
-			else {
-				if (delta_y > 0)
-					frameRender->turn_up();
-				else
-					frameRender->turn_down();
-			}
-			
+			frameRender->turn(delta_x, delta_y);
 			ptPrevious = ptCur;
 		}
 		break;
-	case WM_KEYDOWN:
+	case WM_MOUSEWHEEL:
+		frameRender->zoom(GET_WHEEL_DELTA_WPARAM(wParam));
+		break;
+	//case WM_KEYDOWN:
 		//keyDown(wParam);
-		break;
-	case WM_KEYUP:
+		//break;
+	//case WM_KEYUP:
 		//keyUp(wParam);
-		break;
+		//break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;

@@ -18,16 +18,12 @@ public:
 
 	void resize(int width, int height);
 
-	void turn_left();
+	void turn(float delta_x, float delta_y);
 
-	void turn_right();
-
-	void turn_up();
-
-	void turn_down();
+	void zoom(float delta);
 	
 private:
-	void update_camera_pos();
+	void update_camera();
 
 	int frame_width;
 	int frame_height;
@@ -36,9 +32,10 @@ private:
 
 	Model* model;
 	Renderer* renderer;
+	float* shadowBuffer;
 	DepthShader* depthShader;
-	ShadowShader* shadowShader;
-	float *shadowBuffer;
+	//ShadowShader* shadowShader;
+	GoochShader* goochShader;
 
 	Vec3f cur_camera_pos;
 	Mat4f model_mat;

@@ -5,7 +5,7 @@
 
 struct IShader {
     virtual Vec4f vertex(int iface, int nthvert) = 0;
-    virtual bool fragment(Vec3f bar, TGAColor& color) = 0;
+    virtual bool fragment(Vec3f bar, Vec4f& color) = 0;
 	Model* model;
 	bool is_perspective;
 	Vec3f z_;
@@ -46,10 +46,13 @@ struct IShader {
 
 class Renderer {
 public:
-	Renderer(int _width, int _height, int _viewport_x = 0, int _viewport_y = 0, int _depth = 255);
+	Renderer(int _width, int _height, int _viewport_x = 0, int _viewport_y = 0, int _depth = 255, bool _use_msaa = false);
+
 	virtual ~Renderer() {
 		if (zbuffer != nullptr)
 			delete zbuffer;
+		if (color_buffer != nullptr)
+			delete color_buffer;
 	}
 
 	bool render(Model* model, IShader* shader, TGAImage& image, bool is_perspective = true);
@@ -57,20 +60,41 @@ public:
 	bool render(Model* model, IShader* shader, unsigned char* image, bool is_perspective = true);
 
 	void clear_zbuffer() {
-		for (int i = 0; i < screen_width * screen_height; i++)
+		for (int i = 0; i < sample_num; i++)
 		{
 			zbuffer[i] = FLT_MAX;
 		}
 	}
 
-	void get_zbuffer(float* _zbuffer) { memcpy(_zbuffer, zbuffer, sizeof(float) * screen_width * screen_height); }
+	void get_zbuffer(float* _zbuffer) { 
+		for (int i = 0; i < screen_height; i++)
+		{
+			for (int j = 0; j < screen_width; j++)
+			{
+				int idx = i * screen_width + j;
+				float z = FLT_MAX;
+				for (int s = 0; s < msaa_factor; s++)
+				{
+					if (z > zbuffer[idx * msaa_factor + s])
+						z = zbuffer[idx * msaa_factor + s];
+				}
+				_zbuffer[idx] = z;
+			}
+		}
+	}
 
 private:
 	float* zbuffer;
+	unsigned char* color_buffer;
 	Mat4f viewport_mat;
 	int screen_width, screen_height;
+	int msaa_factor;
+	int sample_num;
 
-	void triangle(Vec3f* pts, IShader* shader, TGAImage& image);
+	bool render(Model* model, IShader* shader, bool is_perspective = true);
 
-	void triangle(Vec3f* pts, IShader* shader, unsigned char* image);
+	TGAColor resolve(int idx);
+
+	void triangle(Vec3f* pts, IShader* shader);
 };
+
