@@ -7,6 +7,7 @@
 - 可编程的着色器（Shaders）
 - 环绕式相机
 - 阴影贴图（Shadow mapping）
+- 各种基本光源（Direction Light，Point Light，Spot Light）
 
 ### Dependences
 - Windows平台
