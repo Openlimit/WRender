@@ -20,7 +20,8 @@ Vec3f msaa_sample(Vec3f pixel, int s) {
 }
 
 Renderer::Renderer(int _width, int _height, int _viewport_x, int _viewport_y, int _depth, bool _use_msaa) :
-	screen_width(_width), screen_height(_height), z_test(true), z_write(true), culling_face(true), deffered_rendering(false)
+	screen_width(_width), screen_height(_height), z_test(true), z_write(true), 
+	culling_face(true), cullingMode(BACK), deffered_rendering(false)
 {
 	if (_use_msaa) {
 		msaa_factor = MSAA_FACTOR;
@@ -131,7 +132,8 @@ bool Renderer::render(Model* model, IShader* shader, bool is_perspective) {
 void Renderer::triangle(Vec3f* pts, IShader* shader) {
 	if (culling_face) {
 		Vec3f normal = cal_normal(shader->clipping_verts);
-		if (normal[2] > 0)
+		bool culling = (cullingMode == BACK && normal[2] > 0) || (cullingMode == FRONT && normal[2] < 0);
+		if (culling)
 			return;
 	}
 

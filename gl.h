@@ -82,6 +82,10 @@ public:
 		GEOMETRY,
 		SHADING
 	};
+	enum CullingMode {
+		FRONT,
+		BACK
+	};
 
 	Renderer(int _width, int _height, int _viewport_x = 0, int _viewport_y = 0, int _depth = 255, bool _use_msaa = false);
 
@@ -150,6 +154,10 @@ public:
 		defferPass = pass;
 	}
 
+	void set_cullingMode(CullingMode mode) {
+		cullingMode = mode;
+	}
+
 	void debug_GBuffer() {
 		Vec3f* pos_buffer = (Vec3f*)G_Buffer->other_buffers[0];
 		Vec3f* normal_buffer = (Vec3f*)G_Buffer->other_buffers[1];
@@ -198,6 +206,7 @@ private:
 	bool z_test;
 	bool z_write;
 	bool culling_face;
+	CullingMode cullingMode;
 
 	bool deffered_rendering;
 	DefferedPass defferPass;
