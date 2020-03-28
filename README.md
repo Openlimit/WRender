@@ -9,6 +9,8 @@
 - 阴影贴图（Shadow mapping）
 - 各种基本光源（Direction Light，Point Light，Spot Light）
 - 反走样Anti-Aliasing（MSAA）
+- 背面剔除
+- 延迟渲染（deffered rendering）
 
 ### Dependences
 - Windows平台
