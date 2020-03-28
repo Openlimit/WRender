@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <cstdarg>
 #include "gl.h"
 #include "utils.h"
 #include "Light.h"
@@ -290,6 +291,194 @@ struct GoochShader :public IShader {
 
 		shade_color = shade_color * shadow;
 		color = Vec4f(shade_color[0], shade_color[1], shade_color[2], 1);
+		return false;
+	}
+};
+
+struct BlinnPhongShader :public IShader {
+	Light* light;
+	Vec3f viewPos;
+
+	Mat4f model_mat;
+	Mat4f view_mat;
+	Mat4f project_mat;
+	Mat4f model_mat_IT;
+
+	int width;
+	int height;
+	float* shadowBuffer;
+	Mat4f shadow_M;
+
+	Vec3f text_coord[3];
+	Vec3f world_verts[3];
+
+	virtual Vec4f vertex(int iface, int nthvert)
+	{
+		text_coord[nthvert] = model->text(iface, nthvert);
+
+		Vec3f vert = model->vert(iface, nthvert);
+		Vec4f vert4(vert[0], vert[1], vert[2], 1);
+		Vec4f world_vert = model_mat * vert4;
+		world_verts[nthvert] = world_vert.head(3);
+		return project_mat * view_mat * world_vert;
+	}
+
+	virtual bool fragment(Vec3f bar, Vec4f& color)
+	{
+		Vec3f text = interpolation(bar, text_coord);;
+		Vec3f surface_color = model->diffuse(text).head(3);
+
+		Vec3f fragPos = interpolation(bar, world_verts);
+		Vec3f viewDir = viewPos - fragPos;
+		viewDir.normalize();
+
+		Vec3f normal = model->normal(text);
+		Vec4f normal4(normal[0], normal[1], normal[2], 0);
+		normal4 = model_mat_IT * normal4;
+		Vec3f n = normal4.head(3);
+		n.normalize();
+
+		Vec3f l = light->light_dir(fragPos);
+
+		//Vec3f r = n * (n.dot(l) * 2.f) - l;  // reflected light
+		//r.normalize();
+		Vec3f h = l + viewDir; //half dir
+		h.normalize();
+
+		float spec = pow(std::fmax(n.dot(h), 0), model->specular(text));
+		float diff = std::fmax(n.dot(l), 0);
+
+		Vec3f light_color = light->color * light->f_dist(fragPos) * light->f_dir(l);
+		Vec3f ambient(0.05, 0.05, 0.05);
+
+		Vec3f shade_color = ambient + light_color.cwiseProduct(surface_color * (diff + spec));
+		shade_color = clamp1(shade_color);
+
+		Vec3f pos = interpolation(bar, clipping_verts);
+		Vec4f pos4(pos[0], pos[1], pos[2], 1);
+		Vec4f shadow_pos = shadow_M * pos4;
+		shadow_pos = shadow_pos / shadow_pos[3];
+
+		int x = (shadow_pos[0] + 1.) * width / 2.;
+		int y = (shadow_pos[1] + 1.) * height / 2.;
+		int idx = y * width + x;
+		float shadow = 1;
+		if (shadowBuffer[idx] < shadow_pos[2] - 1e-2)
+			shadow = 0.3;
+
+		shade_color = shade_color * shadow;
+		color = Vec4f(shade_color[0], shade_color[1], shade_color[2], 1);
+		return false;
+	}
+};
+
+struct GeometryPassShader :public IShader {
+	Mat4f model_mat;
+	Mat4f view_mat;
+	Mat4f project_mat;
+	Mat4f model_mat_IT;
+
+	Vec3f text_coord[3];
+	Vec3f world_verts[3];
+
+	virtual Vec4f vertex(int iface, int nthvert)
+	{
+		text_coord[nthvert] = model->text(iface, nthvert);
+
+		Vec3f vert = model->vert(iface, nthvert);
+		Vec4f vert4(vert[0], vert[1], vert[2], 1);
+		Vec4f world_vert = model_mat * vert4;
+		world_verts[nthvert] = world_vert.head(3);
+		return project_mat * view_mat * world_vert;
+	}
+
+	virtual bool fragment(Vec3f bar, Vec4f& color)
+	{
+		return false;
+	}
+
+	virtual bool fragment_deffered(Vec3f bar, ...)
+	{
+		Vec3f text = interpolation(bar, text_coord);
+		Vec3f fragPos = interpolation(bar, world_verts);
+		Vec3f diffuse_color = model->diffuse(text).head(3);
+
+		Vec3f normal = model->normal(text);
+		Vec4f normal4(normal[0], normal[1], normal[2], 0);
+		normal4 = model_mat_IT * normal4;
+		Vec3f n = normal4.head(3);
+		n.normalize();
+
+		float shiness = model->specular(text);
+
+		va_list args;
+		va_start(args, bar);
+
+		Vec3f* pos = va_arg(args, Vec3f*);
+		Vec3f* nor = va_arg(args, Vec3f*);
+		Vec4f* diffuse_s = va_arg(args, Vec4f*);
+
+		*pos = fragPos;
+		*nor = n;
+		*diffuse_s = Vec4f(diffuse_color[0], diffuse_color[1], diffuse_color[2], shiness);
+
+		va_end(args);
+		return false;
+	}
+};
+
+struct ShadingPassShader :public IShader {
+	std::vector<Light*> lights;
+	Vec3f viewPos;
+
+	virtual Vec4f vertex(int iface, int nthvert)
+	{
+		Vec3f vert = model->vert(iface, nthvert);
+		Vec4f vert4(vert[0], vert[1], vert[2], 1);
+		return vert4;
+	}
+
+	virtual bool fragment(Vec3f bar, Vec4f& color)
+	{
+		return false;
+	}
+
+	virtual bool fragment_deffered(Vec3f bar, ...)
+	{
+		va_list args;
+		va_start(args, bar);
+
+		Vec4f* color = va_arg(args, Vec4f*);
+		Vec3f fragPos = va_arg(args, Vec3f);
+		Vec3f n = va_arg(args, Vec3f);
+		Vec4f diffuse_s = va_arg(args, Vec4f);
+		Vec3f diffuse = diffuse_s.head(3);
+		float shiness = diffuse_s[3];
+
+		va_end(args);
+
+		Vec3f viewDir = viewPos - fragPos;
+		viewDir.normalize();
+
+		Vec3f shade_color(0, 0, 0);
+		for (int i = 0; i < lights.size(); i++)
+		{
+			Vec3f l = lights[i]->light_dir(fragPos);
+			Vec3f h = l + viewDir; //half dir
+			h.normalize();
+
+			float diff = std::fmax(n.dot(l), 0);
+			float spec = 0;
+			if (diff > 0 && shiness > 0)
+				spec = pow(std::fmax(n.dot(h), 0), shiness);
+
+			Vec3f light_color = lights[i]->color * lights[i]->f_dist(fragPos) * lights[i]->f_dir(l);
+			shade_color += light_color.cwiseProduct(diffuse * (diff + spec));
+		}
+
+		Vec3f ambient(0.05, 0.05, 0.05);
+		shade_color = clamp1(shade_color + ambient);
+		*color = Vec4f(shade_color[0], shade_color[1], shade_color[2], 1);
 		return false;
 	}
 };

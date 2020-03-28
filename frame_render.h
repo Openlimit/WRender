@@ -12,6 +12,8 @@ public:
 
 	void init(int width, int height);
 
+	void init_deffered(int width, int height);
+
 	void render();
 
 	void release();
@@ -31,11 +33,14 @@ private:
 	float rotate_speed;
 
 	Model* model;
+	Model* deffered_model;
 	Renderer* renderer;
 	float* shadowBuffer;
 	DepthShader* depthShader;
-	//ShadowShader* shadowShader;
-	GoochShader* goochShader;
+	//GoochShader* goochShader;
+	BlinnPhongShader* shader;
+	GeometryPassShader* geoShader;
+	ShadingPassShader* shadingShader;
 
 	Vec3f cur_camera_pos;
 	Mat4f model_mat;

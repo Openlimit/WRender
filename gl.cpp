@@ -20,7 +20,7 @@ Vec3f msaa_sample(Vec3f pixel, int s) {
 }
 
 Renderer::Renderer(int _width, int _height, int _viewport_x, int _viewport_y, int _depth, bool _use_msaa) :
-	screen_width(_width), screen_height(_height)
+	screen_width(_width), screen_height(_height), z_test(true), z_write(true), culling_face(true), deffered_rendering(false)
 {
 	if (_use_msaa) {
 		msaa_factor = MSAA_FACTOR;
@@ -31,13 +31,11 @@ Renderer::Renderer(int _width, int _height, int _viewport_x, int _viewport_y, in
 		sample_num = _width * _height;
 	}
 
-	zbuffer = new float[sample_num];
+	default_Buffer = new FrameBuffer(sample_num);
 	for (int i = 0; i < sample_num; i++)
 	{
-		zbuffer[i] = FLT_MAX;
+		default_Buffer->depth_buffer[i] = FLT_MAX;
 	}
-
-	color_buffer = new unsigned char[sample_num * 4];
 	
 	viewport_mat = viewport(_viewport_x, _viewport_y, _width, _height, _depth);
 }
@@ -93,7 +91,7 @@ TGAColor Renderer::resolve(int idx) {
 		int color_id = start_id + i * 4;
 		for (int j = 0; j < 4; j++)
 		{
-			color[j] += color_buffer[color_id + j];
+			color[j] += default_Buffer->color_buffer[color_id + j];
 		}
 	}
 	float w = 1.0 / msaa_factor;
@@ -101,7 +99,14 @@ TGAColor Renderer::resolve(int idx) {
 }
 
 bool Renderer::render(Model* model, IShader* shader, bool is_perspective) {
-	memset(color_buffer, 0, sizeof(unsigned char) * sample_num * 4);
+	memset(default_Buffer->color_buffer, 0, sizeof(unsigned char) * sample_num * 4);
+	if (deffered_rendering && defferPass == GEOMETRY) {
+		//memset(G_Buffer->other_buffers[0], 0, sample_num * 3 * sizeof(float));
+		//memset(G_Buffer->other_buffers[1], 0, sample_num * 3 * sizeof(float));
+		//memset(G_Buffer->other_buffers[2], 0, sample_num * 4 * sizeof(float));
+		memset(G_Buffer->other_buffers[3], false, sample_num * sizeof(bool));
+	}
+
 	shader->model = model;
 	shader->is_perspective = is_perspective;
 	for (int i = 0; i < model->nfaces(); i++)
@@ -124,11 +129,14 @@ bool Renderer::render(Model* model, IShader* shader, bool is_perspective) {
 }
 
 void Renderer::triangle(Vec3f* pts, IShader* shader) {
-	int width = screen_width;
-	int height = screen_height;
+	if (culling_face) {
+		Vec3f normal = cal_normal(shader->clipping_verts);
+		if (normal[2] > 0)
+			return;
+	}
 
 	Vec2f max(0, 0);
-	Vec2f min(width, height);
+	Vec2f min(screen_width, screen_height);
 	for (int i = 0; i < 3; i++)
 	{
 		if (pts[i][0] > max[0])max[0] = pts[i][0];
@@ -137,8 +145,8 @@ void Renderer::triangle(Vec3f* pts, IShader* shader) {
 		if (pts[i][1] < min[1])min[1] = pts[i][1];
 	}
 
-	max[0] = std::fmin(max[0], width - 1);
-	max[1] = std::fmin(max[1], height - 1);
+	max[0] = std::fmin(max[0], screen_width - 1);
+	max[1] = std::fmin(max[1], screen_height - 1);
 	min[0] = std::fmax(min[0], 0);
 	min[1] = std::fmax(min[1], 0);
 
@@ -148,71 +156,164 @@ void Renderer::triangle(Vec3f* pts, IShader* shader) {
 		for (p[1] = min[1]; p[1] <= max[1]; p[1]++)
 		{
 			if (msaa_factor > 1) {
-				bool cover[MSAA_FACTOR];
-				float sample_z[MSAA_FACTOR];
-				bool not_cover = true;
-				for (int s = 0; s < msaa_factor; s++) {
-					Vec3f sample = msaa_sample(p, s);
-					Vec3f uv = barycentric_gl(pts[0], pts[1], pts[2], sample);
-					if (uv[0] < 0 || uv[1] < 0 || uv[2] < 0) {
-						cover[s] = false;
-						continue;
-					}
-					cover[s] = true;
-					not_cover = false;
-					Vec3f z_val(pts[0][2], pts[1][2], pts[2][2]);
-					sample_z[s] = shader->interpolation(uv, z_val);
-				}
-
-				if (not_cover)
-					continue;
-
-				Vec3f pixel(p[0] + 0.5, p[1] + 0.5, 0);
-				Vec3f uv = barycentric_gl(pts[0], pts[1], pts[2], pixel);
-				Vec4f color;
-				if (!shader->fragment(uv, color))
-				{
-					int x = p[0];
-					int y = p[1];
-					int idx = y * width + x;
-					for (int s = 0; s < msaa_factor; s++)
-					{
-						int z_idx = idx * msaa_factor + s;
-						if (cover[s] && zbuffer[z_idx] > sample_z[s])
-						{
-							zbuffer[z_idx] = sample_z[s];
-							int color_idx = idx * msaa_factor * 4 + s * 4;
-							for (int i = 0; i < 4; i++)
-							{
-								color_buffer[color_idx + i] = color[i] * 255;
-							}
-						}
-					}
-				}
+				msaa_process(shader, pts, p);
 			}
 			else {
-				Vec3f pixel(p[0] + 0.5, p[1] + 0.5, 0);
-				Vec3f uv = barycentric_gl(pts[0], pts[1], pts[2], pixel);
-				if (uv[0] < 0 || uv[1] < 0 || uv[2] < 0)
-					continue;
+				if (deffered_rendering) {
+					deffered_rendering_process(shader, pts, p);
+				}
+				else {
+					process(shader, pts, p);
+				}
+			}
+		}
+	}
+}
 
-				Vec3f z_val(pts[0][2], pts[1][2], pts[2][2]);
-				float z = shader->interpolation(uv, z_val);
+void Renderer::process(IShader* shader, Vec3f* pts, Vec3f p) {
+	Vec3f pixel(p[0] + 0.5, p[1] + 0.5, 0);
+	Vec3f uv = barycentric_gl(pts[0], pts[1], pts[2], pixel);
+	if (uv[0] < 0 || uv[1] < 0 || uv[2] < 0)
+		return;
 
-				Vec4f color;
-				if (!shader->fragment(uv, color))
+	Vec3f z_val(pts[0][2], pts[1][2], pts[2][2]);
+	float z = shader->interpolation(uv, z_val);
+
+	Vec4f color;
+	if (!shader->fragment(uv, color))
+	{
+		int x = p[0];
+		int y = p[1];
+		int idx = y * screen_width + x;
+
+		bool z_passing = true;
+		if (z_test)
+			z_passing = default_Buffer->depth_buffer[idx] > z;
+
+		if (z_passing)
+		{
+			if (z_write)
+				default_Buffer->depth_buffer[idx] = z;
+
+			for (int i = 0; i < 4; i++)
+			{
+				default_Buffer->color_buffer[idx * 4 + i] = color[i] * 255;
+			}
+		}
+	}
+}
+
+void Renderer::msaa_process(IShader* shader, Vec3f* pts, Vec3f p) {
+	bool cover[MSAA_FACTOR];
+	float sample_z[MSAA_FACTOR];
+	bool not_cover = true;
+	for (int s = 0; s < msaa_factor; s++) {
+		Vec3f sample = msaa_sample(p, s);
+		Vec3f uv = barycentric_gl(pts[0], pts[1], pts[2], sample);
+		if (uv[0] < 0 || uv[1] < 0 || uv[2] < 0) {
+			cover[s] = false;
+			continue;
+		}
+		cover[s] = true;
+		not_cover = false;
+		Vec3f z_val(pts[0][2], pts[1][2], pts[2][2]);
+		sample_z[s] = shader->interpolation(uv, z_val);
+	}
+
+	if (not_cover)
+		return;
+
+	Vec3f pixel(p[0] + 0.5, p[1] + 0.5, 0);
+	Vec3f uv = barycentric_gl(pts[0], pts[1], pts[2], pixel);
+	Vec4f color;
+	if (!shader->fragment(uv, color))
+	{
+		int x = p[0];
+		int y = p[1];
+		int idx = y * screen_width + x;
+		for (int s = 0; s < msaa_factor; s++)
+		{
+			int z_idx = idx * msaa_factor + s;
+			bool z_passing = true;
+			if (z_test)
+				z_passing = default_Buffer->depth_buffer[z_idx] > sample_z[s];
+
+			if (cover[s] && z_passing)
+			{
+				if (z_write)
+					default_Buffer->depth_buffer[z_idx] = sample_z[s];
+
+				int color_idx = idx * msaa_factor * 4 + s * 4;
+				for (int i = 0; i < 4; i++)
 				{
-					int x = p[0];
-					int y = p[1];
-					int idx = y * width + x;
-					if (zbuffer[idx] > z)
-					{
-						zbuffer[idx] = z;
-						for (int i = 0; i < 4; i++)
-						{
-							color_buffer[idx * 4 + i] = color[i] * 255;
-						}
-					}
+					default_Buffer->color_buffer[color_idx + i] = color[i] * 255;
+				}
+			}
+		}
+	}
+}
+
+void Renderer::deffered_rendering_process(IShader* shader, Vec3f* pts, Vec3f p) {
+	Vec3f pixel(p[0] + 0.5, p[1] + 0.5, 0);
+	Vec3f uv = barycentric_gl(pts[0], pts[1], pts[2], pixel);
+	if (uv[0] < 0 || uv[1] < 0 || uv[2] < 0)
+		return;
+
+	Vec3f z_val(pts[0][2], pts[1][2], pts[2][2]);
+	float z = shader->interpolation(uv, z_val);
+
+	int x = p[0];
+	int y = p[1];
+	int idx = y * screen_width + x;
+
+	if (defferPass == GEOMETRY) {
+		Vec3f pos, normal;
+		Vec4f diffuse_s;
+		if (!shader->fragment_deffered(uv, &pos, &normal, &diffuse_s)) {
+			bool z_passing = true;
+			if (z_test)
+				z_passing = default_Buffer->depth_buffer[idx] > z;
+
+			if (z_passing)
+			{
+				if (z_write)
+					default_Buffer->depth_buffer[idx] = z;
+
+				Vec3f* pos_buffer = (Vec3f*)G_Buffer->other_buffers[0];
+				Vec3f* normal_buffer = (Vec3f*)G_Buffer->other_buffers[1];
+				Vec4f* diffuse_buffer = (Vec4f*)G_Buffer->other_buffers[2];
+				bool* status_buffer = (bool*)G_Buffer->other_buffers[3];
+
+				pos_buffer[idx] = pos;
+				normal_buffer[idx] = normal;
+				diffuse_buffer[idx] = diffuse_s;
+				status_buffer[idx] = true;
+			}
+		}
+	}
+	else if (defferPass == SHADING) {
+		Vec3f* pos_buffer = (Vec3f*)G_Buffer->other_buffers[0];
+		Vec3f* normal_buffer = (Vec3f*)G_Buffer->other_buffers[1];
+		Vec4f* diffuse_buffer = (Vec4f*)G_Buffer->other_buffers[2];
+		bool* status_buffer = (bool*)G_Buffer->other_buffers[3];
+
+		if (!status_buffer[idx])
+			return;
+
+		Vec4f color;
+		if (!shader->fragment_deffered(uv, &color, pos_buffer[idx], normal_buffer[idx], diffuse_buffer[idx])) {
+			bool z_passing = true;
+			if (z_test)
+				z_passing = default_Buffer->depth_buffer[idx] > z;
+
+			if (z_passing)
+			{
+				if (z_write)
+					default_Buffer->depth_buffer[idx] = z;
+
+				for (int i = 0; i < 4; i++)
+				{
+					default_Buffer->color_buffer[idx * 4 + i] = color[i] * 255;
 				}
 			}
 		}

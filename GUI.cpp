@@ -123,7 +123,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine,
 	sheight = SCREEN_HEIGHT;
 
 	frameRender = new FrameRender();
-	frameRender->init(swidth, sheight);
+	frameRender->init_deffered(swidth, sheight);
 
 	ShowWindow(hWnd, iCmdShow);
 	UpdateWindow(hWnd);

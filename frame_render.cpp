@@ -456,15 +456,20 @@ void FrameRender::init(int width, int height) {
 	model = new Model("obj/diablo3_pose.obj", "obj/diablo3_pose_diffuse.tga",
 		"obj/diablo3_pose_nm.tga", "obj/diablo3_pose_spec.tga");
 	renderer = new Renderer(width, height, 0, 0, 255, false);
+
 	shadowBuffer = new float[width * height];
 
-	SpotLight *light= new SpotLight();
+	//SpotLight *light= new SpotLight();
+	//light->position = Vec3f(1, 1, 2);
+	//light->color = Vec3f(1, 1, 1);
+	//light->front = -Vec3f(1, 1, 2);
+	//light->front.normalize();
+	//light->inner_cos = 0.9;
+	//light->outter_cos = 0.8;
+
+	PointLight* light = new PointLight();
 	light->position = Vec3f(1, 1, 2);
 	light->color = Vec3f(1, 1, 1);
-	light->front = -Vec3f(1, 1, 2);
-	light->front.normalize();
-	light->inner_cos = 0.9;
-	light->outter_cos = 0.8;
 
 	Vec3f lookatpos(0, 0, 0);
 	Vec3f up(0, 1, 0);
@@ -484,40 +489,76 @@ void FrameRender::init(int width, int height) {
 	Camera camera(cur_camera_pos, lookatpos, up);
 	view_mat = camera.get_view();
 
-	//shadowShader = new ShadowShader();
-	//shadowShader->light_dir = light_dir;
-	//shadowShader->viewPos = cur_camera_pos;
-	//shadowShader->model_mat = model_mat;
-	//shadowShader->view_mat = view_mat;
-	//shadowShader->project_mat = project_mat;
-	//shadowShader->model_mat_IT = model_mat.inverse().transpose();
-	//shadowShader->width = width;
-	//shadowShader->height = height;
-	//shadowShader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
-	//shadowShader->shadowBuffer = shadowBuffer;
-	goochShader = new GoochShader();
-	goochShader->light = dynamic_cast<Light*>(light);
-	goochShader->viewPos = cur_camera_pos;
-	goochShader->model_mat = model_mat;
-	goochShader->view_mat = view_mat;
-	goochShader->project_mat = project_mat;
-	goochShader->model_mat_IT = model_mat.inverse().transpose();
-	goochShader->width = width;
-	goochShader->height = height;
-	goochShader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
-	goochShader->shadowBuffer = shadowBuffer;
+	//goochShader = new GoochShader();
+	shader = new BlinnPhongShader();
+	shader->light = dynamic_cast<Light*>(light);
+	shader->viewPos = cur_camera_pos;
+	shader->model_mat = model_mat;
+	shader->view_mat = view_mat;
+	shader->project_mat = project_mat;
+	shader->model_mat_IT = model_mat.inverse().transpose();
+	shader->width = width;
+	shader->height = height;
+	shader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
+	shader->shadowBuffer = shadowBuffer;
 
 	frame_width = width;
 	frame_height = height;
 	rotate_speed = 0.2;
+
+	renderer->render(model, depthShader, nullptr);
+	renderer->get_zbuffer(shadowBuffer);
+}
+
+void FrameRender::init_deffered(int width, int height) {
+	frame_width = width;
+	frame_height = height;
+	rotate_speed = 0.2;
+
+	model = new Model("obj/diablo3_pose.obj", "obj/diablo3_pose_diffuse.tga",
+		"obj/diablo3_pose_nm.tga", "obj/diablo3_pose_spec.tga");
+	/*model = new Model("obj/african_head.obj", "obj/african_head_diffuse.tga",
+		"obj/african_head_nm.tga", "obj/african_head_spec.tga");*/
+	deffered_model = new Model("obj/deffered_model.obj");
+	renderer = new Renderer(width, height, 0, 0, 255, false);
+	renderer->enable_deffered_rendering();
+
+	PointLight* light1 = new PointLight();
+	light1->position = Vec3f(1, 1, 2);
+	light1->color = Vec3f(1, 1, 1);
+	PointLight* light2 = new PointLight();
+	light2->position = Vec3f(-1, 1, -2);
+	light2->color = Vec3f(1, 1, 1);
+	std::vector<Light*> lights;
+	lights.emplace_back(light1);
+	lights.emplace_back(light2);
+
+	Vec3f lookatpos(0, 0, 0);
+	Vec3f up(0, 1, 0);
+	cur_camera_pos = Vec3f(1, 0, 2);
+	Camera camera(cur_camera_pos, lookatpos, up);
+	view_mat = camera.get_view();
+	model_mat = Mat4f::Identity();
+	project_mat = perspective(60 * PI / 180, 1, 1, 5);
+
+	geoShader = new GeometryPassShader();
+	geoShader->model_mat = model_mat;
+	geoShader->view_mat = view_mat;
+	geoShader->project_mat = project_mat;
+	geoShader->model_mat_IT = model_mat.inverse().transpose();
+
+	shadingShader = new ShadingPassShader();
+	shadingShader->lights = lights;
+	shadingShader->viewPos = cur_camera_pos;
 }
 
 void FrameRender::render() {
 	renderer->clear_zbuffer();
-	renderer->render(model, depthShader, nullptr);
-	renderer->get_zbuffer(shadowBuffer);
+	renderer->set_defferPass(Renderer::GEOMETRY);
+	renderer->render(model, geoShader, nullptr);
 	renderer->clear_zbuffer();
-	renderer->render(model, goochShader, screenBits);
+	renderer->set_defferPass(Renderer::SHADING);
+	renderer->render(deffered_model, shadingShader, screenBits);
 }
 
 void FrameRender::release() {
@@ -527,8 +568,8 @@ void FrameRender::release() {
 		delete renderer;
 	if (depthShader != nullptr)
 		delete depthShader;
-	if (goochShader != nullptr)
-		delete goochShader;
+	if (shader != nullptr)
+		delete shader;
 	if (shadowBuffer != nullptr)
 		delete shadowBuffer;
 }
@@ -537,17 +578,21 @@ void FrameRender::resize(int width, int height) {
 	if (renderer != nullptr)
 		delete renderer;
 	renderer = new Renderer(width, height, 0, 0, 255, false);
+	renderer->enable_deffered_rendering();
 
-	if (shadowBuffer != nullptr)
+	/*if (shadowBuffer != nullptr)
 		delete shadowBuffer;
 	shadowBuffer = new float[width * height];
 
-	goochShader->width = width;
-	goochShader->height = height;
-	goochShader->shadowBuffer = shadowBuffer;
+	shader->width = width;
+	shader->height = height;
+	shader->shadowBuffer = shadowBuffer;*/
 
 	frame_width = width;
 	frame_height = height;
+
+	//renderer->render(model, depthShader, nullptr);
+	//renderer->get_zbuffer(shadowBuffer);
 }
 
 void FrameRender::turn(float delta_x, float delta_y){
@@ -585,7 +630,10 @@ void FrameRender::update_camera() {
 	Camera camera(cur_camera_pos, lookatpos, up);
 	view_mat = camera.get_view();
 
-	goochShader->viewPos = cur_camera_pos;
-	goochShader->view_mat = view_mat;
-	goochShader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
+	/*shader->viewPos = cur_camera_pos;
+	shader->view_mat = view_mat;
+	shader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();*/
+
+	geoShader->view_mat = view_mat;
+	shadingShader->viewPos = cur_camera_pos;
 }
