@@ -11,6 +11,7 @@
 - 反走样Anti-Aliasing（MSAA）
 - 背面剔除
 - 延迟渲染（deffered rendering）
+- 齐次裁剪（Homogeneous clipping）
 
 ### Dependences
 - Windows平台
