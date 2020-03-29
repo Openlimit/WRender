@@ -201,7 +201,7 @@ struct ShadowShader :public IShader {
 			spec = pow(std::fmax(r.dot(viewDir), 0.0f), spec_f);
 		float diff = std::fmax(0, n.dot(light_dir));
 
-		Vec3f pos = interpolation(bar, clipping_verts);
+		Vec3f pos = interpolation(bar, ndc_verts);
 		Vec4f pos4(pos[0], pos[1], pos[2], 1);
 		Vec4f shadow_pos = shadow_M * pos4;
 		shadow_pos = shadow_pos / shadow_pos[3];
@@ -277,7 +277,7 @@ struct GoochShader :public IShader {
 		Vec3f light_color = light->color * light->f_dist(fragPos) * light->f_dir(l);
 		Vec3f shade_color = 0.5 * cool + t * light_color.cwiseProduct(s * highlight + (1 - s) * warm);
 
-		Vec3f pos = interpolation(bar, clipping_verts);
+		Vec3f pos = interpolation(bar, ndc_verts);
 		Vec4f pos4(pos[0], pos[1], pos[2], 1);
 		Vec4f shadow_pos = shadow_M * pos4;
 		shadow_pos = shadow_pos / shadow_pos[3];
@@ -354,7 +354,7 @@ struct BlinnPhongShader :public IShader {
 		Vec3f shade_color = ambient + light_color.cwiseProduct(surface_color * (diff + spec));
 		shade_color = clamp1(shade_color);
 
-		Vec3f pos = interpolation(bar, clipping_verts);
+		Vec3f pos = interpolation(bar, ndc_verts);
 		Vec4f pos4(pos[0], pos[1], pos[2], 1);
 		Vec4f shadow_pos = shadow_M * pos4;
 		shadow_pos = shadow_pos / shadow_pos[3];

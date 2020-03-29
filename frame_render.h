@@ -29,7 +29,8 @@ private:
 
 	int frame_width;
 	int frame_height;
-
+	float dnear;
+	float dfar;
 	float rotate_speed;
 
 	Model* model;

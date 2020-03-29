@@ -30,11 +30,11 @@ Mat4f perspective(float fov, float wh_ratio, float near, float far) {
 	return pers;  
 }
 
-Mat4f viewport(int x, int y, int width, int height, int depth) {
+Mat4f viewport(int x, int y, int width, int height) {
 	Mat4f m;
 	m << width / 2.f, 0, 0, width / 2.f + x,
 		0, height / 2.f, 0, height / 2.f + y,
-		0, 0, depth / 2.f, depth / 2.f,
+		0, 0, 1 / 2.f, 1 / 2.f,
 		0, 0, 0, 1;
 	return m;
 }

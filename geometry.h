@@ -16,6 +16,6 @@ Mat4f orthographic(float left, float right, float bottom, float top, float near,
 
 Mat4f perspective(float fov, float wh_ratio, float near, float far);
 
-Mat4f viewport(int x, int y, int width, int height, int depth);
+Mat4f viewport(int x, int y, int width, int height);
 
 Vec3f cal_normal(Vec3f* pts);

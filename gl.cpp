@@ -19,8 +19,8 @@ Vec3f msaa_sample(Vec3f pixel, int s) {
 	return pixel + delta;
 }
 
-Renderer::Renderer(int _width, int _height, int _viewport_x, int _viewport_y, int _depth, bool _use_msaa) :
-	screen_width(_width), screen_height(_height), z_test(true), z_write(true), 
+Renderer::Renderer(float _near, float _far, int _width, int _height, int _viewport_x, int _viewport_y, bool _use_msaa) :
+	dnear(_near), dfar(_far), screen_width(_width), screen_height(_height), z_test(true), z_write(true), 
 	culling_face(true), cullingMode(BACK), deffered_rendering(false)
 {
 	if (_use_msaa) {
@@ -38,7 +38,7 @@ Renderer::Renderer(int _width, int _height, int _viewport_x, int _viewport_y, in
 		default_Buffer->depth_buffer[i] = FLT_MAX;
 	}
 	
-	viewport_mat = viewport(_viewport_x, _viewport_y, _width, _height, _depth);
+	viewport_mat = viewport(_viewport_x, _viewport_y, _width, _height);
 }
 
 bool Renderer::render(Model* model, IShader* shader, TGAImage& image, bool is_perspective)
@@ -112,29 +112,61 @@ bool Renderer::render(Model* model, IShader* shader, bool is_perspective) {
 	shader->is_perspective = is_perspective;
 	for (int i = 0; i < model->nfaces(); i++)
 	{
-		Vec3f screen_coords[3];
+		Vec4f clipping_coords[3];
 		for (int j = 0; j < 3; j++) {
-			Vec4f clipping_coord = shader->vertex(i, j);
+			clipping_coords[j] = shader->vertex(i, j);
+		}
+		if (ClipCulling(clipping_coords))
+			continue;
+
+		Vec3f screen_coords[3];
+		for (int j = 0; j < 3; j++)
+		{
 			if (is_perspective)
 			{
-				shader->z_[j] = clipping_coord[3];//根据透视投影矩阵的性质(相机朝向z轴正方向),W=Z0
+				shader->z_invs_[j] = 1. / clipping_coords[j][3];//根据透视投影矩阵的性质(相机朝向z轴正方向),W=Z0
 			}
-			clipping_coord = clipping_coord / clipping_coord[3];
-			shader->clipping_verts[j] = clipping_coord.head(3);
-			Vec4f screen_coord = viewport_mat * clipping_coord;
-			screen_coords[j] = Vec3f(int(screen_coord[0]), int(screen_coord[1]), clipping_coord[2]);
+			Vec4f ndc_coord = clipping_coords[j] / clipping_coords[j][3]; //透视除法
+			shader->ndc_verts[j] = ndc_coord.head(3);
+			Vec4f screen_coord = viewport_mat * ndc_coord;
+			screen_coords[j] = Vec3f(int(screen_coord[0]), int(screen_coord[1]), screen_coord[2]);
 		}
 		triangle(screen_coords, shader);
 	}
 	return true;
 }
 
-void Renderer::triangle(Vec3f* pts, IShader* shader) {
+bool Renderer::FaceCulling(Vec3f *verts) {
 	if (culling_face) {
-		Vec3f normal = cal_normal(shader->clipping_verts);
+		Vec3f normal = cal_normal(verts);
 		bool culling = (cullingMode == BACK && normal[2] > 0) || (cullingMode == FRONT && normal[2] < 0);
-		if (culling)
-			return;
+		return culling;
+	}
+	else {
+		return false;
+	}
+}
+
+bool Renderer::ClipCulling(Vec4f* verts) {
+	if (verts[0][3] < dnear || verts[1][3] < dnear || verts[2][3] < dnear)
+		return true;
+	if (verts[0][3] > dfar || verts[1][3] > dfar || verts[2][3] > dfar)
+		return true;
+
+	for (int i = 0; i < 3; i++)
+	{
+		if (verts[0][i] > verts[0][3] && verts[1][i] > verts[1][3] && verts[2][i] > verts[2][3])
+			return true;
+		if (verts[0][i] < -verts[0][3] && verts[1][i] < -verts[1][3] && verts[2][i] < -verts[2][3])
+			return true;
+	}
+
+	return false;
+}
+
+void Renderer::triangle(Vec3f* pts, IShader* shader) {
+	if (FaceCulling(shader->ndc_verts)) {
+		return;
 	}
 
 	Vec2f max(0, 0);

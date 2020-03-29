@@ -6,8 +6,8 @@
 struct IShader {
 	Model* model;
 	bool is_perspective;
-	Vec3f z_;
-	Vec3f clipping_verts[3];
+	Vec3f z_invs_;
+	Vec3f ndc_verts[3];
 
     virtual Vec4f vertex(int iface, int nthvert) = 0;
     virtual bool fragment(Vec3f bar, Vec4f& color) = 0;
@@ -15,16 +15,16 @@ struct IShader {
 
 	Vec3f perspective_correct_interpolation(Vec3f bar, Vec3f values[3])
 	{
-		float z_inv = bar[0] / z_[0] + bar[1] / z_[1] + bar[2] / z_[2];
-		Vec3f result_d_z = bar[0] * values[0] / z_[0] + bar[1] * values[1] / z_[1] + bar[2] * values[2] / z_[2];
+		float z_inv = bar[0] * z_invs_[0] + bar[1] * z_invs_[1] + bar[2] * z_invs_[2];
+		Vec3f result_d_z = bar[0] * values[0] * z_invs_[0] + bar[1] * values[1] * z_invs_[1] + bar[2] * values[2] * z_invs_[2];
 		Vec3f result = result_d_z / z_inv;
 		return result;
 	}
 
 	float perspective_correct_interpolation(Vec3f bar, Vec3f values)
 	{
-		float z_inv = bar[0] / z_[0] + bar[1] / z_[1] + bar[2] / z_[2];
-		float result_d_z = bar[0] * values[0] / z_[0] + bar[1] * values[1] / z_[1] + bar[2] * values[2] / z_[2];
+		float z_inv = bar[0] * z_invs_[0] + bar[1] * z_invs_[1] + bar[2] * z_invs_[2];
+		float result_d_z = bar[0] * values[0] * z_invs_[0] + bar[1] * values[1] * z_invs_[1] + bar[2] * values[2] * z_invs_[2];
 		float result = result_d_z / z_inv;
 		return result;
 	}
@@ -87,7 +87,7 @@ public:
 		BACK
 	};
 
-	Renderer(int _width, int _height, int _viewport_x = 0, int _viewport_y = 0, int _depth = 255, bool _use_msaa = false);
+	Renderer(float _near, float _far, int _width, int _height, int _viewport_x = 0, int _viewport_y = 0, bool _use_msaa = false);
 
 	virtual ~Renderer() {
 		if (default_Buffer != nullptr)
@@ -158,6 +158,10 @@ public:
 		cullingMode = mode;
 	}
 
+	bool FaceCulling(Vec3f* verts);
+
+	bool ClipCulling(Vec4f* verts);
+
 	void debug_GBuffer() {
 		Vec3f* pos_buffer = (Vec3f*)G_Buffer->other_buffers[0];
 		Vec3f* normal_buffer = (Vec3f*)G_Buffer->other_buffers[1];
@@ -199,10 +203,12 @@ public:
 private:
 	FrameBuffer* default_Buffer;//depth,color(rgba)
 	Mat4f viewport_mat;
+	float dnear;
+	float dfar;
 	int screen_width, screen_height;
 	int msaa_factor;
 	int sample_num;
-
+	
 	bool z_test;
 	bool z_write;
 	bool culling_face;
