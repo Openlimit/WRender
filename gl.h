@@ -1,11 +1,10 @@
 #pragma once
 #include <iostream>
 #include "model.h"
-
+#include "texture.h"
 
 struct IShader {
 	Model* model;
-	bool is_perspective;
 	Vec3f z_invs_;
 	Vec3f ndc_verts[3];
 
@@ -13,7 +12,7 @@ struct IShader {
     virtual bool fragment(Vec3f bar, Vec4f& color) = 0;
 	virtual bool fragment_deffered(Vec3f bar, ...) { return false; }
 
-	Vec3f perspective_correct_interpolation(Vec3f bar, Vec3f values[3])
+	Vec3f interpolation(Vec3f bar, Vec3f values[3])
 	{
 		float z_inv = bar[0] * z_invs_[0] + bar[1] * z_invs_[1] + bar[2] * z_invs_[2];
 		Vec3f result_d_z = bar[0] * values[0] * z_invs_[0] + bar[1] * values[1] * z_invs_[1] + bar[2] * values[2] * z_invs_[2];
@@ -21,7 +20,7 @@ struct IShader {
 		return result;
 	}
 
-	float perspective_correct_interpolation(Vec3f bar, Vec3f values)
+	float interpolation(Vec3f bar, Vec3f values)
 	{
 		float z_inv = bar[0] * z_invs_[0] + bar[1] * z_invs_[1] + bar[2] * z_invs_[2];
 		float result_d_z = bar[0] * values[0] * z_invs_[0] + bar[1] * values[1] * z_invs_[1] + bar[2] * values[2] * z_invs_[2];
@@ -29,20 +28,25 @@ struct IShader {
 		return result;
 	}
 
-	Vec3f interpolation(Vec3f bar, Vec3f values[3])
+	float ShadowCalculation(Vec4f fragPosLightSpace, Texture* shadowMap)
 	{
-		if (is_perspective)
-			return perspective_correct_interpolation(bar, values);
-		else
-			return values[0] * bar[0] + values[1] * bar[1] + values[2] * bar[2];
-	}
+		Vec3f projCoords = fragPosLightSpace.head(3) / fragPosLightSpace[3];
+		projCoords = projCoords * 0.5 + Vec3f(0.5, 0.5, 0.5);
+		float currentDepth = projCoords[2];
+		float bias = 0.005;
+		float shadow = 0.0;
+		Vec2f texelSize = shadowMap->texel_size();
+		for (int x = -1; x <= 1; ++x)
+		{
+			for (int y = -1; y <= 1; ++y)
+			{
+				float pcfDepth = shadowMap->get(projCoords[0] + x * texelSize[0], projCoords[1] + y * texelSize[1]);
+				shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+			}
+		}
+		shadow /= 9.0;
 
-	float interpolation(Vec3f bar, Vec3f values)
-	{
-		if (is_perspective)
-			return perspective_correct_interpolation(bar, values);
-		else
-			return values.dot(bar);
+		return shadow;
 	}
 };
 
@@ -96,9 +100,9 @@ public:
 			delete G_Buffer;
 	}
 
-	bool render(Model* model, IShader* shader, TGAImage& image, bool is_perspective = true);
+	bool render(Model* model, IShader* shader, TGAImage& image);
 
-	bool render(Model* model, IShader* shader, unsigned char* image, bool is_perspective = true);
+	bool render(Model* model, IShader* shader, unsigned char* image);
 
 	void clear_zbuffer() {
 		for (int i = 0; i < sample_num; i++)
@@ -218,7 +222,7 @@ private:
 	DefferedPass defferPass;
 	FrameBuffer* G_Buffer; //position(x,y,z), normal(x,y,z), diffuse_specular(r,g,b,shiness)
 
-	bool render(Model* model, IShader* shader, bool is_perspective = true);
+	bool render(Model* model, IShader* shader);
 
 	TGAColor resolve(int idx);
 

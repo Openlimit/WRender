@@ -160,6 +160,7 @@
     <ClInclude Include="model.h" />
     <ClInclude Include="frame_render.h" />
     <ClInclude Include="shader.h" />
+    <ClInclude Include="texture.h" />
     <ClInclude Include="tgaimage.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>

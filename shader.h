@@ -124,99 +124,17 @@ struct GouraudShader : public IShader {
 };
 
 struct DepthShader :public IShader {
-	Mat4f model_mat;
-	Mat4f view_mat;
-	Mat4f project_mat;
-
-	Vec3f z_arr;
+	Mat4f MVP;
 
 	virtual Vec4f vertex(int iface, int nthvert)
 	{
 		Vec3f vert = model->vert(iface, nthvert);
 		Vec4f vert4(vert[0], vert[1], vert[2], 1);
-		Vec4f clipping_pos = project_mat * view_mat * model_mat * vert4;
-		z_arr[nthvert] = clipping_pos[2] / clipping_pos[3];
-		return clipping_pos;
+		return MVP * vert4;
 	}
 
 	virtual bool fragment(Vec3f bar, Vec4f& color)
 	{
-		float z = interpolation(bar, z_arr);
-		float d = (z + 1) / 2;
-		color = Vec4f(d, d, d, 1);
-		return false;
-	}
-};
-
-struct ShadowShader :public IShader {
-	Vec3f light_dir;
-	Vec3f viewPos;
-
-	Mat4f model_mat;
-	Mat4f view_mat;
-	Mat4f project_mat;
-	Mat4f model_mat_IT;
-	
-	int width;
-	int height;
-	float* shadowBuffer;
-	Mat4f shadow_M;
-
-	Vec3f text_coord[3];
-	Vec3f world_verts[3];
-
-	virtual Vec4f vertex(int iface, int nthvert)
-	{
-		text_coord[nthvert] = model->text(iface, nthvert);
-
-		Vec3f vert = model->vert(iface, nthvert);
-		Vec4f vert4(vert[0], vert[1], vert[2], 1);
-		Vec4f world_vert = model_mat * vert4;
-		world_verts[nthvert] = world_vert.head(3);
-		return project_mat * view_mat * world_vert;
-	}
-
-	virtual bool fragment(Vec3f bar, Vec4f& color)
-	{
-		Vec3f text = interpolation(bar, text_coord);
-		Vec4f diffuse_color = model->diffuse(text);
-
-		Vec3f fragPos = interpolation(bar, world_verts);
-		Vec3f viewDir = viewPos - fragPos;
-		viewDir.normalize();
-
-		Vec3f normal = model->normal(text);
-		Vec4f normal4(normal[0], normal[1], normal[2], 0);
-		normal4 = model_mat_IT * normal4;
-		Vec3f n = normal4.head(3);
-		n.normalize();
-
-		Vec3f r = n * (n.dot(light_dir) * 2.f) - light_dir;  // reflected light
-		r.normalize();
-		float spec_f = model->specular(text);
-		float spec;
-		if (spec_f < 1)
-			spec = 0;
-		else
-			spec = pow(std::fmax(r.dot(viewDir), 0.0f), spec_f);
-		float diff = std::fmax(0, n.dot(light_dir));
-
-		Vec3f pos = interpolation(bar, ndc_verts);
-		Vec4f pos4(pos[0], pos[1], pos[2], 1);
-		Vec4f shadow_pos = shadow_M * pos4;
-		shadow_pos = shadow_pos / shadow_pos[3];
-
-		int x = (shadow_pos[0] + 1.) * width / 2.;
-		int y = (shadow_pos[1] + 1.) * height / 2.;
-		int idx = y * width + x;
-		float shadow=1;
-		if (shadowBuffer[idx] < shadow_pos[2] - 1e-2)
-			shadow = 0.3;
-		else
-			shadow = 1;
-
-		for (int i = 0; i < 3; i++)
-			color[i] = std::fmin(0.05 + diffuse_color[i] * shadow * (1.2 * diff + .6 * spec), 1);
 		return false;
 	}
 };
@@ -429,6 +347,8 @@ struct GeometryPassShader :public IShader {
 
 struct ShadingPassShader :public IShader {
 	std::vector<Light*> lights;
+	std::vector<Mat4f> lightMats;
+	std::vector<Texture*> shadowMaps;
 	Vec3f viewPos;
 
 	virtual Vec4f vertex(int iface, int nthvert)
@@ -461,6 +381,8 @@ struct ShadingPassShader :public IShader {
 		viewDir.normalize();
 
 		Vec3f shade_color(0, 0, 0);
+		Vec4f fragPos4(fragPos[0], fragPos[1], fragPos[2], 1);
+		float ambient = 0.15;
 		for (int i = 0; i < lights.size(); i++)
 		{
 			Vec3f l = lights[i]->light_dir(fragPos);
@@ -472,12 +394,14 @@ struct ShadingPassShader :public IShader {
 			if (diff > 0 && shiness > 0)
 				spec = pow(std::fmax(n.dot(h), 0), shiness);
 
+			Vec4f fragPosLightSpace = lightMats[i] * fragPos4;
+			float shadow = ShadowCalculation(fragPosLightSpace, shadowMaps[i]);
+
 			Vec3f light_color = lights[i]->color * lights[i]->f_dist(fragPos) * lights[i]->f_dir(l);
-			shade_color += light_color.cwiseProduct(diffuse * (diff + spec));
+			shade_color += light_color.cwiseProduct(diffuse * (ambient + (1. - shadow) * (diff + spec)));
 		}
 
-		Vec3f ambient(0.05, 0.05, 0.05);
-		shade_color = clamp1(shade_color + ambient);
+		shade_color = clamp1(shade_color);
 		*color = Vec4f(shade_color[0], shade_color[1], shade_color[2], 1);
 		return false;
 	}

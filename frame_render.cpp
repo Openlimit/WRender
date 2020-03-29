@@ -102,65 +102,8 @@ void FrameRender::init(int width, int height) {
 	dnear = 1;
 	dfar = 5;
 
-	model = new Model("obj/diablo3_pose.obj", "obj/diablo3_pose_diffuse.tga",
-		"obj/diablo3_pose_nm.tga", "obj/diablo3_pose_spec.tga");
-	renderer = new Renderer(dnear, dfar, width, height, 0, 0, false);
-
-	shadowBuffer = new float[width * height];
-
-	//SpotLight *light= new SpotLight();
-	//light->position = Vec3f(1, 1, 2);
-	//light->color = Vec3f(1, 1, 1);
-	//light->front = -Vec3f(1, 1, 2);
-	//light->front.normalize();
-	//light->inner_cos = 0.9;
-	//light->outter_cos = 0.8;
-
-	PointLight* light = new PointLight();
-	light->position = Vec3f(1, 1, 2);
-	light->color = Vec3f(1, 1, 1);
-
-	Vec3f lookatpos(0, 0, 0);
-	Vec3f up(0, 1, 0);
-	Camera camera_light(light->position, lookatpos, up);
-
 	model_mat = Mat4f::Identity();
-	Mat4f ligth_view_mat = camera_light.get_view();
 	project_mat = perspective(60 * PI / 180, 1, dnear, dfar);
-	light_MVP = project_mat * ligth_view_mat * model_mat;
-
-	depthShader = new DepthShader();
-	depthShader->model_mat = model_mat;
-	depthShader->view_mat = ligth_view_mat;
-	depthShader->project_mat = project_mat;
-
-	cur_camera_pos = Vec3f(1, 0, 2);
-	Camera camera(cur_camera_pos, lookatpos, up);
-	view_mat = camera.get_view();
-
-	//goochShader = new GoochShader();
-	shader = new BlinnPhongShader();
-	shader->light = dynamic_cast<Light*>(light);
-	shader->viewPos = cur_camera_pos;
-	shader->model_mat = model_mat;
-	shader->view_mat = view_mat;
-	shader->project_mat = project_mat;
-	shader->model_mat_IT = model_mat.inverse().transpose();
-	shader->width = width;
-	shader->height = height;
-	shader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();
-	shader->shadowBuffer = shadowBuffer;
-
-	renderer->render(model, depthShader, nullptr);
-	renderer->get_zbuffer(shadowBuffer);
-}
-
-void FrameRender::init_deffered(int width, int height) {
-	frame_width = width;
-	frame_height = height;
-	rotate_speed = 0.2;
-	dnear = 1;
-	dfar = 5;
 
 	model = new Model("obj/diablo3_pose.obj", "obj/diablo3_pose_diffuse.tga",
 		"obj/diablo3_pose_nm.tga", "obj/diablo3_pose_spec.tga");
@@ -176,17 +119,24 @@ void FrameRender::init_deffered(int width, int height) {
 	PointLight* light2 = new PointLight();
 	light2->position = Vec3f(-1, 1, -2);
 	light2->color = Vec3f(1, 1, 1);
-	std::vector<Light*> lights;
 	lights.emplace_back(light1);
 	lights.emplace_back(light2);
 
 	Vec3f lookatpos(0, 0, 0);
 	Vec3f up(0, 1, 0);
+	for (int i = 0; i < lights.size(); i++)
+	{
+		Camera camera_light(lights[i]->position, lookatpos, up);
+		Mat4f ligth_view = camera_light.get_view();
+		Mat4f light_mat = project_mat * ligth_view;
+		lightMats.emplace_back(light_mat);
+		Texture *shadowMap = new Texture(width, height);
+		shadowMaps.emplace_back(shadowMap);
+	}
+	
 	cur_camera_pos = Vec3f(1, 0, 2);
 	Camera camera(cur_camera_pos, lookatpos, up);
 	view_mat = camera.get_view();
-	model_mat = Mat4f::Identity();
-	project_mat = perspective(60 * PI / 180, 1, dnear, dfar);
 
 	geoShader = new GeometryPassShader();
 	geoShader->model_mat = model_mat;
@@ -197,12 +147,31 @@ void FrameRender::init_deffered(int width, int height) {
 	shadingShader = new ShadingPassShader();
 	shadingShader->lights = lights;
 	shadingShader->viewPos = cur_camera_pos;
+	shadingShader->lightMats = lightMats;
+	shadingShader->shadowMaps = shadowMaps;
+
+	depthShader = new DepthShader();
+
+	generate_ShadowMap();
+}
+
+void FrameRender::generate_ShadowMap() {
+	renderer->set_cullingMode(Renderer::FRONT);
+	for (int i = 0; i < lights.size(); i++)
+	{
+		depthShader->MVP = lightMats[i] * model_mat;
+		renderer->clear_zbuffer();
+		renderer->render(model, depthShader, nullptr);
+		renderer->get_zbuffer(shadowMaps[i]->data);
+	}
+	renderer->set_cullingMode(Renderer::BACK);
 }
 
 void FrameRender::render() {
 	renderer->clear_zbuffer();
 	renderer->set_defferPass(Renderer::GEOMETRY);
 	renderer->render(model, geoShader, nullptr);
+
 	renderer->clear_zbuffer();
 	renderer->set_defferPass(Renderer::SHADING);
 	renderer->render(deffered_model, shadingShader, screenBits);
@@ -211,14 +180,21 @@ void FrameRender::render() {
 void FrameRender::release() {
 	if (model != nullptr)
 		delete model;
+	if (deffered_model != nullptr)
+		delete deffered_model;
 	if (renderer != nullptr)
 		delete renderer;
 	if (depthShader != nullptr)
 		delete depthShader;
-	if (shader != nullptr)
-		delete shader;
-	if (shadowBuffer != nullptr)
-		delete shadowBuffer;
+	if (geoShader != nullptr)
+		delete geoShader;
+	if (shadingShader != nullptr)
+		delete shadingShader;
+	for (int i = 0; i < lights.size(); i++)
+	{
+		if (lights[i] != nullptr)
+			delete lights[i];
+	}
 }
 
 void FrameRender::resize(int width, int height) {
@@ -227,19 +203,18 @@ void FrameRender::resize(int width, int height) {
 	renderer = new Renderer(dnear, dfar, width, height, 0, 0, false);
 	renderer->enable_deffered_rendering();
 
-	/*if (shadowBuffer != nullptr)
-		delete shadowBuffer;
-	shadowBuffer = new float[width * height];
-
-	shader->width = width;
-	shader->height = height;
-	shader->shadowBuffer = shadowBuffer;*/
-
 	frame_width = width;
 	frame_height = height;
 
-	//renderer->render(model, depthShader, nullptr);
-	//renderer->get_zbuffer(shadowBuffer);
+	for (int i = 0; i < lights.size(); i++)
+	{
+		if (shadowMaps[i] != nullptr)
+			delete shadowMaps[i];
+		shadowMaps[i] = new Texture(width, height);
+	}
+	generate_ShadowMap();
+
+	shadingShader->shadowMaps = shadowMaps;
 }
 
 void FrameRender::turn(float delta_x, float delta_y){
@@ -276,10 +251,6 @@ void FrameRender::update_camera() {
 	Vec3f up(0, 1, 0);
 	Camera camera(cur_camera_pos, lookatpos, up);
 	view_mat = camera.get_view();
-
-	/*shader->viewPos = cur_camera_pos;
-	shader->view_mat = view_mat;
-	shader->shadow_M = light_MVP * (project_mat * view_mat * model_mat).inverse();*/
 
 	geoShader->view_mat = view_mat;
 	shadingShader->viewPos = cur_camera_pos;

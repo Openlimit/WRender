@@ -41,9 +41,9 @@ Renderer::Renderer(float _near, float _far, int _width, int _height, int _viewpo
 	viewport_mat = viewport(_viewport_x, _viewport_y, _width, _height);
 }
 
-bool Renderer::render(Model* model, IShader* shader, TGAImage& image, bool is_perspective)
+bool Renderer::render(Model* model, IShader* shader, TGAImage& image)
 {
-	if (render(model, shader, is_perspective)) {
+	if (render(model, shader)) {
 		for (int i = 0; i < screen_height; i++)
 		{
 			for (int j = 0; j < screen_width; j++)
@@ -60,9 +60,9 @@ bool Renderer::render(Model* model, IShader* shader, TGAImage& image, bool is_pe
 	}
 }
 
-bool Renderer::render(Model* model, IShader* shader, unsigned char* image, bool is_perspective)
+bool Renderer::render(Model* model, IShader* shader, unsigned char* image)
 {
-	if (render(model, shader, is_perspective)) {
+	if (render(model, shader)) {
 		if (image != nullptr) {
 			for (int i = 0; i < screen_height; i++)
 			{
@@ -99,7 +99,7 @@ TGAColor Renderer::resolve(int idx) {
 	return TGAColor(color[0] * w, color[1] * w, color[2] * w, color[3] * w);
 }
 
-bool Renderer::render(Model* model, IShader* shader, bool is_perspective) {
+bool Renderer::render(Model* model, IShader* shader) {
 	memset(default_Buffer->color_buffer, 0, sizeof(unsigned char) * sample_num * 4);
 	if (deffered_rendering && defferPass == GEOMETRY) {
 		//memset(G_Buffer->other_buffers[0], 0, sample_num * 3 * sizeof(float));
@@ -109,7 +109,6 @@ bool Renderer::render(Model* model, IShader* shader, bool is_perspective) {
 	}
 
 	shader->model = model;
-	shader->is_perspective = is_perspective;
 	for (int i = 0; i < model->nfaces(); i++)
 	{
 		Vec4f clipping_coords[3];
@@ -122,11 +121,10 @@ bool Renderer::render(Model* model, IShader* shader, bool is_perspective) {
 		Vec3f screen_coords[3];
 		for (int j = 0; j < 3; j++)
 		{
-			if (is_perspective)
-			{
-				shader->z_invs_[j] = 1. / clipping_coords[j][3];//根据透视投影矩阵的性质(相机朝向z轴正方向),W=Z0
-			}
+			shader->z_invs_[j] = 1. / clipping_coords[j][3];//根据透视投影矩阵的性质(相机朝向z轴正方向),W=Z0
+
 			Vec4f ndc_coord = clipping_coords[j] / clipping_coords[j][3]; //透视除法
+
 			shader->ndc_verts[j] = ndc_coord.head(3);
 			Vec4f screen_coord = viewport_mat * ndc_coord;
 			screen_coords[j] = Vec3f(int(screen_coord[0]), int(screen_coord[1]), screen_coord[2]);

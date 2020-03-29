@@ -12,8 +12,6 @@ public:
 
 	void init(int width, int height);
 
-	void init_deffered(int width, int height);
-
 	void render();
 
 	void release();
@@ -27,6 +25,8 @@ public:
 private:
 	void update_camera();
 
+	void generate_ShadowMap();
+
 	int frame_width;
 	int frame_height;
 	float dnear;
@@ -36,16 +36,18 @@ private:
 	Model* model;
 	Model* deffered_model;
 	Renderer* renderer;
-	float* shadowBuffer;
 	DepthShader* depthShader;
 	//GoochShader* goochShader;
-	BlinnPhongShader* shader;
+	//BlinnPhongShader* shader;
 	GeometryPassShader* geoShader;
 	ShadingPassShader* shadingShader;
+
+	std::vector<Light*> lights;
+	std::vector<Mat4f> lightMats;
+	std::vector<Texture*> shadowMaps;
 
 	Vec3f cur_camera_pos;
 	Mat4f model_mat;
 	Mat4f view_mat;
 	Mat4f project_mat;
-	Mat4f light_MVP;
 };
