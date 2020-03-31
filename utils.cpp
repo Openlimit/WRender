@@ -13,3 +13,7 @@ Vec3f clamp1(Vec3f v) {
 	}
 	return r;
 }
+
+float lerp(float v1, float v2, float t) {
+	return v1 + (v2 - v1) * t;
+}

@@ -315,40 +315,40 @@ struct GeometryPassShader :public IShader {
 		return false;
 	}
 
-	virtual bool fragment_deffered(Vec3f bar, ...)
+	virtual void MRT(Vec3f bar)
 	{
 		Vec3f text = interpolation(bar, text_coord);
 		Vec3f fragPos = interpolation(bar, world_verts);
+		float depth = 1. / interpolation(bar, z_invs_);
 		Vec3f diffuse_color = model->diffuse(text).head(3);
 
 		Vec3f normal = model->normal(text);
 		Vec4f normal4(normal[0], normal[1], normal[2], 0);
 		normal4 = model_mat_IT * normal4;
-		Vec3f n = normal4.head(3);
-		n.normalize();
+		normal = normal4.head(3);
+		normal.normalize();
 
 		float shiness = model->specular(text);
 
-		va_list args;
-		va_start(args, bar);
+		Texture4f* pos_buffer = (Texture4f*)buffers[0];
+		Texture3f* normal_buffer = (Texture3f*)buffers[1];
+		Texture4f* diffuse_buffer = (Texture4f*)buffers[2];
+		Texture1b* status_buffer = (Texture1b*)buffers[3];
 
-		Vec3f* pos = va_arg(args, Vec3f*);
-		Vec3f* nor = va_arg(args, Vec3f*);
-		Vec4f* diffuse_s = va_arg(args, Vec4f*);
+		Vec4f fragPosDepth(fragPos[0], fragPos[1], fragPos[2], depth);
+		Vec4f diffuse_s(diffuse_color[0], diffuse_color[1], diffuse_color[2], shiness);
 
-		*pos = fragPos;
-		*nor = n;
-		*diffuse_s = Vec4f(diffuse_color[0], diffuse_color[1], diffuse_color[2], shiness);
-
-		va_end(args);
-		return false;
+		pos_buffer->set(frag_idx[0], frag_idx[1], 0, fragPosDepth);
+		normal_buffer->set(frag_idx[0], frag_idx[1], 0, normal);
+		diffuse_buffer->set(frag_idx[0], frag_idx[1], 0, diffuse_s);
+		status_buffer->set(frag_idx[0], frag_idx[1], 0, true);
 	}
 };
 
 struct ShadingPassShader :public IShader {
 	std::vector<Light*> lights;
 	std::vector<Mat4f> lightMats;
-	std::vector<Texture*> shadowMaps;
+	std::vector<Texture1f*> shadowMaps;
 	Vec3f viewPos;
 
 	virtual Vec4f vertex(int iface, int nthvert)
@@ -360,22 +360,20 @@ struct ShadingPassShader :public IShader {
 
 	virtual bool fragment(Vec3f bar, Vec4f& color)
 	{
-		return false;
-	}
+		Texture1b* status_buffer = (Texture1b*)buffers[3];
+		if (!status_buffer->get(frag_idx[0], frag_idx[1]))
+			return true;
 
-	virtual bool fragment_deffered(Vec3f bar, ...)
-	{
-		va_list args;
-		va_start(args, bar);
+		Texture4f* pos_buffer = (Texture4f*)buffers[0];
+		Texture3f* normal_buffer = (Texture3f*)buffers[1];
+		Texture4f* diffuse_buffer = (Texture4f*)buffers[2];
 
-		Vec4f* color = va_arg(args, Vec4f*);
-		Vec3f fragPos = va_arg(args, Vec3f);
-		Vec3f n = va_arg(args, Vec3f);
-		Vec4f diffuse_s = va_arg(args, Vec4f);
+		Vec4f fragPosDepth = pos_buffer->get(frag_idx[0], frag_idx[1]);
+		Vec3f fragPos = fragPosDepth.head(3);
+		Vec3f normal = normal_buffer->get(frag_idx[0], frag_idx[1]);
+		Vec4f diffuse_s = diffuse_buffer->get(frag_idx[0], frag_idx[1]);
 		Vec3f diffuse = diffuse_s.head(3);
 		float shiness = diffuse_s[3];
-
-		va_end(args);
 
 		Vec3f viewDir = viewPos - fragPos;
 		viewDir.normalize();
@@ -389,10 +387,10 @@ struct ShadingPassShader :public IShader {
 			Vec3f h = l + viewDir; //half dir
 			h.normalize();
 
-			float diff = std::fmax(n.dot(l), 0);
+			float diff = std::fmax(normal.dot(l), 0);
 			float spec = 0;
-			if (diff > 0 && shiness > 0)
-				spec = pow(std::fmax(n.dot(h), 0), shiness);
+			if (diff > 0 && shiness >= 1)
+				spec = pow(std::fmax(normal.dot(h), 0.), shiness);
 
 			Vec4f fragPosLightSpace = lightMats[i] * fragPos4;
 			float shadow = ShadowCalculation(fragPosLightSpace, shadowMaps[i]);
@@ -402,7 +400,62 @@ struct ShadingPassShader :public IShader {
 		}
 
 		shade_color = clamp1(shade_color);
-		*color = Vec4f(shade_color[0], shade_color[1], shade_color[2], 1);
+		color = Vec4f(shade_color[0], shade_color[1], shade_color[2], 1);
 		return false;
 	}
+};
+
+struct SSAOShader :public IShader {
+	Mat4f project_mat;
+	Mat4f view_mat;
+	std::vector<Vec3f> ssaoKernel;
+	std::vector<Vec3f> ssaoNoise;
+	float radius;
+
+	virtual Vec4f vertex(int iface, int nthvert)
+	{
+		Vec3f vert = model->vert(iface, nthvert);
+		Vec4f vert4(vert[0], vert[1], vert[2], 1);
+		return vert4;
+	}
+
+	virtual bool fragment(Vec3f bar, Vec4f& color)
+	{
+		return false;
+	}
+
+	/*virtual bool fragment_MRT(Vec3f bar, ...)
+	{
+		va_list args;
+		va_start(args, bar);
+		Vec4f fragPosDepth = va_arg(args, Vec4f);
+		Vec3f normal = va_arg(args, Vec3f);
+		va_end(args);
+
+		Vec3f fragPos = fragPosDepth.head(3);
+		float depth = fragPosDepth[4];
+
+		int s = std::sqrt(ssaoNoise.size());
+		int noise_idx = (frag_idx[1] % s) * s + frag_idx[0] % s;
+		Vec3f randomVec = ssaoNoise[noise_idx];
+
+		Vec3f tangent = randomVec - normal * randomVec.dot(normal);
+		tangent.normalize();
+		Vec3f bitangent = normal.cross(tangent);
+		Mat3f TBN;
+		TBN.col(0) = tangent;
+		TBN.col(1) = bitangent;
+		TBN.col(2) = normal;
+
+		float occlusion = 0.0;
+		for (int i = 0; i < ssaoKernel.size(); ++i)
+		{
+			Vec3f sample = TBN * ssaoKernel[i];
+			sample = fragPos + sample * radius;
+
+			
+		}
+
+		return false;
+	}*/
 };

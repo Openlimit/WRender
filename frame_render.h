@@ -27,6 +27,8 @@ private:
 
 	void generate_ShadowMap();
 
+	void init_SSAO();
+
 	int frame_width;
 	int frame_height;
 	float dnear;
@@ -44,7 +46,7 @@ private:
 
 	std::vector<Light*> lights;
 	std::vector<Mat4f> lightMats;
-	std::vector<Texture*> shadowMaps;
+	std::vector<Texture1f*> shadowMaps;
 
 	Vec3f cur_camera_pos;
 	Mat4f model_mat;

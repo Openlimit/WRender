@@ -1,5 +1,6 @@
 #include <iostream>
 #include <algorithm>
+#include <random>
 #include "camera.h"
 #include "frame_render.h"
 
@@ -130,7 +131,7 @@ void FrameRender::init(int width, int height) {
 		Mat4f ligth_view = camera_light.get_view();
 		Mat4f light_mat = project_mat * ligth_view;
 		lightMats.emplace_back(light_mat);
-		Texture *shadowMap = new Texture(width, height);
+		Texture1f *shadowMap = new Texture1f(width, height);
 		shadowMaps.emplace_back(shadowMap);
 	}
 	
@@ -162,18 +163,52 @@ void FrameRender::generate_ShadowMap() {
 		depthShader->MVP = lightMats[i] * model_mat;
 		renderer->clear_zbuffer();
 		renderer->render(model, depthShader, nullptr);
-		renderer->get_zbuffer(shadowMaps[i]->data);
+		renderer->get_zbuffer(shadowMaps[i]);
 	}
 	renderer->set_cullingMode(Renderer::BACK);
 }
 
+void FrameRender::init_SSAO() {
+	std::uniform_real_distribution<float> randomFloats(0.0, 1.0);
+	std::default_random_engine generator;
+	std::vector<Vec3f> ssaoKernel;
+	for (int i = 0; i < 64; ++i)
+	{
+		Vec3f sample(
+			randomFloats(generator) * 2.0 - 1.0,
+			randomFloats(generator) * 2.0 - 1.0,
+			randomFloats(generator)
+			);
+		sample.normalize();
+		sample *= randomFloats(generator);
+		float scale = i / 64.0;
+		scale = lerp(0.1f, 1.0f, scale * scale);
+		sample *= scale;
+		ssaoKernel.push_back(sample);
+	}
+
+	std::vector<Vec3f> ssaoNoise;
+	for (int i = 0; i < 16; i++)
+	{
+		Vec3f noise(
+			randomFloats(generator) * 2.0 - 1.0,
+			randomFloats(generator) * 2.0 - 1.0,
+			0.0f);
+		ssaoNoise.push_back(noise);
+	}
+}
+
 void FrameRender::render() {
-	renderer->clear_zbuffer();
-	renderer->set_defferPass(Renderer::GEOMETRY);
-	renderer->render(model, geoShader, nullptr);
+	renderer->clear_deffered_rendering();
 
 	renderer->clear_zbuffer();
-	renderer->set_defferPass(Renderer::SHADING);
+	renderer->render(model, geoShader, nullptr);
+
+	//renderer->debug_GBuffer();
+	//renderer->debug_zbuffer();
+	//exit(0);
+
+	renderer->clear_zbuffer();
 	renderer->render(deffered_model, shadingShader, screenBits);
 }
 
@@ -210,7 +245,7 @@ void FrameRender::resize(int width, int height) {
 	{
 		if (shadowMaps[i] != nullptr)
 			delete shadowMaps[i];
-		shadowMaps[i] = new Texture(width, height);
+		shadowMaps[i] = new Texture1f(width, height);
 	}
 	generate_ShadowMap();
 
