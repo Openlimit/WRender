@@ -12,6 +12,7 @@
 - 背面剔除
 - 延迟渲染（deffered rendering）
 - 齐次裁剪（Homogeneous clipping）
+- 环境光遮蔽（SSAO）
 
 ### Dependences
 - Windows平台
