@@ -50,6 +50,24 @@ struct IShader {
 
 		return shadow;
 	}
+
+	float SSAO_Blur(Texture1f* ao_buffer, Texture1b* status_buffer, int frag_x, int frag_y) {
+		float result = 0.0;
+		int count = 0;
+		for (int x = -2; x < 2; ++x)
+		{
+			for (int y = -2; y < 2; ++y)
+			{
+				int offset_x = frag_x + x;
+				int offset_y = frag_y + y;
+				if (status_buffer->get(offset_x, offset_y)) {
+					result += ao_buffer->get(offset_x, offset_y);
+					count++;
+				}
+			}
+		}
+		return result / count;
+	}
 };
 
 struct FrameBuffer {
@@ -138,12 +156,14 @@ public:
 			Texture3f* normal_buffer = new Texture3f(screen_width, screen_height);
 			Texture4f* diffuse_buffer = new Texture4f(screen_width, screen_height);
 			Texture1b* status_buffer = new Texture1b(screen_width, screen_height);
+			Texture1f* ao_buffer = new Texture1f(screen_width, screen_height);
 
 			G_Buffer = new FrameBuffer();
 			G_Buffer->add_buffer(pos_buffer);//position(x,y,z,d)
 			G_Buffer->add_buffer(normal_buffer);//normal(x,y,z)
 			G_Buffer->add_buffer(diffuse_buffer);//diffuse_specular(r,g,b,shiness)
 			G_Buffer->add_buffer(status_buffer);//status
+			G_Buffer->add_buffer(ao_buffer);//SSAO
 		}
 	}
 

@@ -43,6 +43,7 @@ private:
 	//BlinnPhongShader* shader;
 	GeometryPassShader* geoShader;
 	ShadingPassShader* shadingShader;
+	SSAOShader* ssaoShader;
 
 	std::vector<Light*> lights;
 	std::vector<Mat4f> lightMats;

@@ -29,6 +29,8 @@ struct Texture{
     }
 
     T get(int x, int y, int z = 0) {
+        if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= depth)
+            return T(0);
         int idx = (y * width + x) * depth + z;
         return data[idx];
     }

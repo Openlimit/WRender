@@ -151,6 +151,12 @@ void FrameRender::init(int width, int height) {
 	shadingShader->lightMats = lightMats;
 	shadingShader->shadowMaps = shadowMaps;
 
+	ssaoShader = new SSAOShader();
+	ssaoShader->project_mat = project_mat;
+	ssaoShader->view_mat = view_mat;
+	ssaoShader->radius = 1;
+	init_SSAO();
+
 	depthShader = new DepthShader();
 
 	generate_ShadowMap();
@@ -196,6 +202,9 @@ void FrameRender::init_SSAO() {
 			0.0f);
 		ssaoNoise.push_back(noise);
 	}
+
+	ssaoShader->ssaoKernel = ssaoKernel;
+	ssaoShader->ssaoNoise = ssaoNoise;
 }
 
 void FrameRender::render() {
@@ -207,6 +216,9 @@ void FrameRender::render() {
 	//renderer->debug_GBuffer();
 	//renderer->debug_zbuffer();
 	//exit(0);
+
+	renderer->clear_zbuffer();
+	renderer->render(deffered_model, ssaoShader, screenBits);
 
 	renderer->clear_zbuffer();
 	renderer->render(deffered_model, shadingShader, screenBits);
@@ -225,6 +237,8 @@ void FrameRender::release() {
 		delete geoShader;
 	if (shadingShader != nullptr)
 		delete shadingShader;
+	if (ssaoShader != nullptr)
+		delete ssaoShader;
 	for (int i = 0; i < lights.size(); i++)
 	{
 		if (lights[i] != nullptr)
@@ -289,4 +303,5 @@ void FrameRender::update_camera() {
 
 	geoShader->view_mat = view_mat;
 	shadingShader->viewPos = cur_camera_pos;
+	ssaoShader->view_mat = view_mat;
 }

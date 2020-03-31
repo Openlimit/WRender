@@ -367,6 +367,7 @@ struct ShadingPassShader :public IShader {
 		Texture4f* pos_buffer = (Texture4f*)buffers[0];
 		Texture3f* normal_buffer = (Texture3f*)buffers[1];
 		Texture4f* diffuse_buffer = (Texture4f*)buffers[2];
+		Texture1f* ao_buffer = (Texture1f*)buffers[4];
 
 		Vec4f fragPosDepth = pos_buffer->get(frag_idx[0], frag_idx[1]);
 		Vec3f fragPos = fragPosDepth.head(3);
@@ -380,7 +381,8 @@ struct ShadingPassShader :public IShader {
 
 		Vec3f shade_color(0, 0, 0);
 		Vec4f fragPos4(fragPos[0], fragPos[1], fragPos[2], 1);
-		float ambient = 0.15;
+		float ao = SSAO_Blur(ao_buffer, status_buffer, frag_idx[0], frag_idx[1]);
+		float ambient = 0.15 * ao;
 		for (int i = 0; i < lights.size(); i++)
 		{
 			Vec3f l = lights[i]->light_dir(fragPos);
@@ -424,16 +426,18 @@ struct SSAOShader :public IShader {
 		return false;
 	}
 
-	/*virtual bool fragment_MRT(Vec3f bar, ...)
+	virtual void MRT(Vec3f bar)
 	{
-		va_list args;
-		va_start(args, bar);
-		Vec4f fragPosDepth = va_arg(args, Vec4f);
-		Vec3f normal = va_arg(args, Vec3f);
-		va_end(args);
+		Texture1b* status_buffer = (Texture1b*)buffers[3];
+		if (!status_buffer->get(frag_idx[0], frag_idx[1]))
+			return;
 
+		Texture4f* pos_buffer = (Texture4f*)buffers[0];
+		Texture3f* normal_buffer = (Texture3f*)buffers[1];
+		Vec4f fragPosDepth = pos_buffer->get(frag_idx[0], frag_idx[1]);
 		Vec3f fragPos = fragPosDepth.head(3);
-		float depth = fragPosDepth[4];
+		float depth = fragPosDepth[3];
+		Vec3f normal = normal_buffer->get(frag_idx[0], frag_idx[1]);
 
 		int s = std::sqrt(ssaoNoise.size());
 		int noise_idx = (frag_idx[1] % s) * s + frag_idx[0] % s;
@@ -452,10 +456,19 @@ struct SSAOShader :public IShader {
 		{
 			Vec3f sample = TBN * ssaoKernel[i];
 			sample = fragPos + sample * radius;
-
-			
+			Vec4f offset(sample[0], sample[1], sample[2], 1.0);
+			offset = project_mat * view_mat * offset;
+			float offset_depth = offset[3];
+			offset = offset / offset[3];
+			float sampleDepth = pos_buffer->get_by_uv(offset[0] * 0.5 + 0.5, offset[1] * 0.5 + 0.5)[3];
+			bool status = status_buffer->get_by_uv(offset[0] * 0.5 + 0.5, offset[1] * 0.5 + 0.5);
+			if (status) {
+				float rangeCheck = smoothstep(0.0, 1.0, radius / (abs(depth - sampleDepth) + 1e-4));
+				occlusion += (sampleDepth < offset_depth ? 1.0 : 0.0) * rangeCheck;
+			}
 		}
-
-		return false;
-	}*/
+		occlusion = 1.0 - (occlusion / ssaoKernel.size());
+		Texture1f* ao_buffer = (Texture1f*)buffers[4];
+		ao_buffer->set(frag_idx[0], frag_idx[1], 0, occlusion);
+	}
 };
