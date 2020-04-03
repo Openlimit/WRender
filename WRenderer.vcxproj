@@ -124,6 +124,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <Profile>true</Profile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -140,10 +141,10 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <Profile>true</Profile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="camera.cpp" />
     <ClCompile Include="geometry.cpp" />
     <ClCompile Include="gl.cpp" />
     <ClCompile Include="GUI.cpp" />
@@ -163,6 +164,7 @@
     <ClInclude Include="texture.h" />
     <ClInclude Include="tgaimage.h" />
     <ClInclude Include="utils.h" />
+    <ClInclude Include="wr_math.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

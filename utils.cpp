@@ -18,6 +18,14 @@ float lerp(float v1, float v2, float t) {
 	return v1 + (v2 - v1) * t;
 }
 
+Vec4f lerp(Vec4f v1, Vec4f v2, float t) {
+	return v1 + (v2 - v1) * t;
+}
+
+Vec3f lerp(Vec3f v1, Vec3f v2, float t) {
+	return v1 + (v2 - v1) * t;
+}
+
 float clamp(float x, float lowerlimit, float upperlimit) {
 	if (x < lowerlimit)
 		x = lowerlimit;

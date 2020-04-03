@@ -5,30 +5,12 @@
 
 struct IShader {
 	Model* model;
-	Vec3f z_invs_;
-	Vec3f ndc_verts[3];
-	Vec2i frag_idx;
+	Point* shade_point;
 	void** buffers;
 
-    virtual Vec4f vertex(int iface, int nthvert) = 0;
-    virtual bool fragment(Vec3f bar, Vec4f& color) = 0;
-	virtual void MRT(Vec3f bar) {}
-
-	Vec3f interpolation(Vec3f bar, Vec3f values[3])
-	{
-		float z_inv = bar[0] * z_invs_[0] + bar[1] * z_invs_[1] + bar[2] * z_invs_[2];
-		Vec3f result_d_z = bar[0] * values[0] * z_invs_[0] + bar[1] * values[1] * z_invs_[1] + bar[2] * values[2] * z_invs_[2];
-		Vec3f result = result_d_z / z_inv;
-		return result;
-	}
-
-	float interpolation(Vec3f bar, Vec3f values)
-	{
-		float z_inv = bar[0] * z_invs_[0] + bar[1] * z_invs_[1] + bar[2] * z_invs_[2];
-		float result_d_z = bar[0] * values[0] * z_invs_[0] + bar[1] * values[1] * z_invs_[1] + bar[2] * values[2] * z_invs_[2];
-		float result = result_d_z / z_inv;
-		return result;
-	}
+    virtual Point vertex(int iface, int nthvert) = 0;
+    virtual bool fragment(Vec4f& color) = 0;
+	virtual void MRT() {}
 
 	float ShadowCalculation(Vec4f fragPosLightSpace, Texture1f* shadowMap)
 	{
@@ -123,6 +105,10 @@ public:
 		default_Buffer->depth_buffer->clear(FLT_MAX);
 	}
 
+	void clear_colorbuffer() {
+		default_Buffer->color_buffer->clear();
+	}
+
 	void get_zbuffer(Texture1f* _zbuffer) { 
 		if (msaa_factor > 1) {
 			for (int i = 0; i < screen_height; i++)
@@ -181,10 +167,6 @@ public:
 	void set_cullingMode(CullingMode mode) {
 		cullingMode = mode;
 	}
-
-	bool FaceCulling(Vec3f* verts);
-
-	bool ClipCulling(Vec4f* verts);
 
 	void debug_GBuffer() {
 		Texture4f* pos_buffer = (Texture4f*)G_Buffer->other_buffers[0];
@@ -248,6 +230,7 @@ private:
 	int screen_width, screen_height;
 	int msaa_factor;
 	
+	bool early_z_test;
 	bool z_test;
 	bool z_write;
 	bool culling_face;
@@ -260,10 +243,14 @@ private:
 
 	TGAColor resolve(int x, int y);
 
-	void triangle(Vec3f* pts, IShader* shader);
+	bool FaceCulling(Point* verts);
 
-	void process(IShader* shader, Vec3f* pts, Vec3f p);
+	bool ClipCulling(Point* verts);
 
-	void msaa_process(IShader* shader, Vec3f* pts, Vec3f p);
+	void triangle(Point* pts, IShader* shader);
+
+	void process(IShader* shader, Point* pts, Vec3f p);
+
+	void msaa_process(IShader* shader, Point* pts, Vec3f p);
 };
 

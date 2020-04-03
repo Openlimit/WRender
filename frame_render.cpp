@@ -1,7 +1,8 @@
 #include <iostream>
 #include <algorithm>
 #include <random>
-#include "camera.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "frame_render.h"
 
 void line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
@@ -100,7 +101,7 @@ void FrameRender::init(int width, int height) {
 	frame_width = width;
 	frame_height = height;
 	rotate_speed = 0.2;
-	dnear = 1;
+	dnear = 0.5;
 	dfar = 5;
 
 	model_mat = Mat4f::Identity();
@@ -111,6 +112,7 @@ void FrameRender::init(int width, int height) {
 	/*model = new Model("obj/african_head.obj", "obj/african_head_diffuse.tga",
 		"obj/african_head_nm.tga", "obj/african_head_spec.tga");*/
 	deffered_model = new Model("obj/deffered_model.obj");
+	skybox_model = new Model("obj/skybox_model.obj");
 	renderer = new Renderer(dnear, dfar, width, height, 0, 0, false);
 	renderer->enable_deffered_rendering();
 
@@ -135,9 +137,9 @@ void FrameRender::init(int width, int height) {
 		shadowMaps.emplace_back(shadowMap);
 	}
 	
-	cur_camera_pos = Vec3f(1, 0, 2);
-	Camera camera(cur_camera_pos, lookatpos, up);
-	view_mat = camera.get_view();
+	Vec3f camera_pos(0, 0, 2);
+	camera = new Camera(camera_pos, lookatpos, up);
+	view_mat = camera->get_view();
 
 	geoShader = new GeometryPassShader();
 	geoShader->model_mat = model_mat;
@@ -145,11 +147,14 @@ void FrameRender::init(int width, int height) {
 	geoShader->project_mat = project_mat;
 	geoShader->model_mat_IT = model_mat.inverse().transpose();
 
-	shadingShader = new ShadingPassShader();
+	/*shadingShader = new ShadingPassShader();
 	shadingShader->lights = lights;
-	shadingShader->viewPos = cur_camera_pos;
+	shadingShader->viewPos = camera->get_camera_pos();
 	shadingShader->lightMats = lightMats;
-	shadingShader->shadowMaps = shadowMaps;
+	shadingShader->shadowMaps = shadowMaps;*/
+
+	shadingShader = new ReflectShadingPassShader();
+	shadingShader->viewPos = camera->get_camera_pos();
 
 	ssaoShader = new SSAOShader();
 	ssaoShader->project_mat = project_mat;
@@ -158,8 +163,9 @@ void FrameRender::init(int width, int height) {
 	init_SSAO();
 
 	depthShader = new DepthShader();
-
 	generate_ShadowMap();
+
+	init_skybox();
 }
 
 void FrameRender::generate_ShadowMap() {
@@ -207,21 +213,52 @@ void FrameRender::init_SSAO() {
 	ssaoShader->ssaoNoise = ssaoNoise;
 }
 
+void FrameRender::init_skybox() {
+	std::vector<std::string> faces
+	{
+		"right.jpg",
+		"left.jpg",
+		"top.jpg",
+		"bottom.jpg",
+		"front.jpg",
+		"back.jpg"
+	};
+	std::string pre = "obj/skybox/";
+	int width, height, nrChannels;
+	for (int i = 0; i < 6; i++)
+	{
+		unsigned char* data = stbi_load((pre + faces[i]).c_str(), &width, &height, &nrChannels, 0);
+		assert(data != nullptr && nrChannels == 3);
+		if (skybox == nullptr) {
+			skybox = new TextureCube<Vec3u>(width, height);
+		}
+		skybox->init_from_data((Vec3u*)data, i);
+		stbi_image_free(data);
+	}
+	
+	skyboxShader = new SkyBoxShader();
+	skyboxShader->view_mat= Mat4f::Identity();
+	skyboxShader->view_mat.topLeftCorner(3, 3) = view_mat.topLeftCorner(3, 3);
+	skyboxShader->project_mat = perspective(90 * PI / 180, 1, dnear, dfar);;
+	skyboxShader->skybox = skybox;
+
+	shadingShader->skybox = skybox;
+}
+
 void FrameRender::render() {
 	renderer->clear_deffered_rendering();
-
+	renderer->clear_colorbuffer();
 	renderer->clear_zbuffer();
+
 	renderer->render(model, geoShader, nullptr);
 
-	//renderer->debug_GBuffer();
-	//renderer->debug_zbuffer();
-	//exit(0);
-
-	renderer->clear_zbuffer();
-	renderer->render(deffered_model, ssaoShader, screenBits);
+	//renderer->clear_zbuffer();
+	//renderer->render(deffered_model, ssaoShader, screenBits);
 
 	renderer->clear_zbuffer();
 	renderer->render(deffered_model, shadingShader, screenBits);
+
+	renderer->render(skybox_model, skyboxShader, screenBits);
 }
 
 void FrameRender::release() {
@@ -263,45 +300,27 @@ void FrameRender::resize(int width, int height) {
 	}
 	generate_ShadowMap();
 
-	shadingShader->shadowMaps = shadowMaps;
+	//shadingShader->shadowMaps = shadowMaps;
 }
 
 void FrameRender::turn(float delta_x, float delta_y){
-	float theta_x = -2 * PI * delta_x / frame_height;
+	float theta_x = -2 * PI * delta_x / frame_width;
 	float theta_y = -2 * PI * delta_y / frame_height;
-
-	float cos_theta_x = std::cos(theta_x);
-	float sin_theta_x = std::sin(theta_x);
-	float cos_theta_y = std::cos(theta_y);
-	float sin_theta_y = std::sin(theta_y);
-
-	Mat3f rotation_x, rotation_y;
-
-	rotation_x << cos_theta_x, 0, sin_theta_x,
-		0, 1, 0,
-		-sin_theta_x, 0, cos_theta_x;
-
-	rotation_y << 1, 0, 0,
-		0, cos_theta_y, -sin_theta_y,
-		0, sin_theta_y, cos_theta_y;
-
-	cur_camera_pos = rotation_x * rotation_y * cur_camera_pos;
-	update_camera();
+	camera->turn(theta_x, theta_y);
+	update_view();
 }
 
 void FrameRender::zoom(float delta) {
-	float d = std::fmin(std::fmax(0.5, 1. - delta / 1200), 2);
-	cur_camera_pos = cur_camera_pos * d;
-	update_camera();
+	float d = std::fmin(std::fmax(0.5, 1 - delta / 1200), 2);
+	camera->zoom(d);
+	update_view();
 }
 
-void FrameRender::update_camera() {
-	Vec3f lookatpos(0, 0, 0);
-	Vec3f up(0, 1, 0);
-	Camera camera(cur_camera_pos, lookatpos, up);
-	view_mat = camera.get_view();
+void FrameRender::update_view() {
+	view_mat = camera->get_view();
 
 	geoShader->view_mat = view_mat;
-	shadingShader->viewPos = cur_camera_pos;
+	shadingShader->viewPos = camera->get_camera_pos();
 	ssaoShader->view_mat = view_mat;
+	skyboxShader->view_mat.topLeftCorner(3, 3) = view_mat.topLeftCorner(3, 3);
 }

@@ -2,8 +2,8 @@
 #include <cstdio>
 #include "frame_render.h"
 
-int SCREEN_WIDTH = 800;
-int SCREEN_HEIGHT = 800;
+int SCREEN_WIDTH = 640;
+int SCREEN_HEIGHT = 480;
 
 FrameRender *frameRender;
 bool willExit = false;

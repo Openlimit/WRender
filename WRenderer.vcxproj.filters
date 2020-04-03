@@ -21,9 +21,6 @@
     <ClCompile Include="model.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="camera.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="geometry.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -69,6 +66,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="texture.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="wr_math.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
