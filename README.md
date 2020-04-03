@@ -13,6 +13,7 @@
 - 延迟渲染（deffered rendering）
 - 齐次裁剪（Homogeneous clipping）
 - 环境光遮蔽（SSAO）
+- 天空盒（SkyBox）
 
 ### Dependences
 - Windows平台
