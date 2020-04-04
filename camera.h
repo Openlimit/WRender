@@ -4,7 +4,7 @@
 class Camera
 {
 public:
-	Camera(Vec3f _pos, Vec3f _lookatpos, Vec3f _up) :pos(_pos), lookatpos(_lookatpos), up(_up) {
+	Camera(Vec3f _pos, Vec3f _lookatpos, Vec3f _up) :pos(_pos), lookatpos(_lookatpos), worldUp(_up) {
 		updateFrame();
 	}
 
@@ -40,7 +40,7 @@ public:
 			0, sin_theta_y, cos_theta_y;
 
 		Vec3f cur_pos = pos - lookatpos;
-		cur_pos = rotation_x * rotation_y * pos;
+		cur_pos = rotation_x * rotation_y * cur_pos;
 		pos = cur_pos + lookatpos;
 
 		updateFrame();
@@ -68,7 +68,7 @@ private:
 	void updateFrame() {
 		front = lookatpos - pos;
 		front.normalize();
-		right = front.cross(up);
+		right = front.cross(worldUp);
 		right.normalize();
 		up = right.cross(front);
 	}
@@ -78,4 +78,5 @@ private:
 	Vec3f front;
 	Vec3f right;
 	Vec3f up;
+	Vec3f worldUp;
 };

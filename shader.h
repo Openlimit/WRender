@@ -45,8 +45,8 @@ struct GoochShader :public IShader {
 
 	virtual bool fragment(Vec4f& color)
 	{
-		Vec3f text = shade_point->values[0];
-		Vec3f fragPos = shade_point->values[1];
+		Vec3f text = get_values(0);
+		Vec3f fragPos = get_values(1);
 
 		Vec3f surface_color = model->diffuse(text).head(3);
 		Vec3f viewDir = viewPos - fragPos;
@@ -102,11 +102,9 @@ struct GeometryPassShader :public IShader {
 
 	virtual void MRT()
 	{
-		Vec2i frag_idx((int)shade_point->screen_pos[0], (int)shade_point->screen_pos[1]);
-
-		Vec3f text = shade_point->values[0];
-		Vec3f fragPos = shade_point->values[1];
-		float depth = shade_point->clipping_pos[3];
+		Vec3f text = get_values(0);
+		Vec3f fragPos = get_values(1);
+		float depth = get_origin_depth();
 		Vec3f diffuse_color = model->diffuse(text).head(3);
 
 		Vec3f normal = model->normal(text);
@@ -138,6 +136,45 @@ struct ShadingPassShader :public IShader {
 	std::vector<Texture1f*> shadowMaps;
 	Vec3f viewPos;
 
+	float ShadowCalculation(Vec4f fragPosLightSpace, Texture1f* shadowMap)
+	{
+		Vec3f projCoords = fragPosLightSpace.head(3) / fragPosLightSpace[3];
+		projCoords = projCoords * 0.5 + Vec3f(0.5, 0.5, 0.5);
+		float currentDepth = projCoords[2];
+		float bias = 0.005;
+		float shadow = 0.0;
+		Vec3f texelSize = shadowMap->texel_size();
+		for (int x = -1; x <= 1; ++x)
+		{
+			for (int y = -1; y <= 1; ++y)
+			{
+				float pcfDepth = shadowMap->get_by_uv(projCoords[0] + x * texelSize[0], projCoords[1] + y * texelSize[1]);
+				shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+			}
+		}
+		shadow /= 9.0;
+
+		return shadow;
+	}
+
+	float SSAO_Blur(Texture1f* ao_buffer, Texture1b* status_buffer, int frag_x, int frag_y) {
+		float result = 0.0;
+		int count = 0;
+		for (int x = -2; x < 2; ++x)
+		{
+			for (int y = -2; y < 2; ++y)
+			{
+				int offset_x = frag_x + x;
+				int offset_y = frag_y + y;
+				if (status_buffer->get(offset_x, offset_y)) {
+					result += ao_buffer->get(offset_x, offset_y);
+					count++;
+				}
+			}
+		}
+		return result / count;
+	}
+
 	virtual Point vertex(int iface, int nthvert)
 	{
 		Vec3f vert = model->vert(iface, nthvert);
@@ -149,8 +186,6 @@ struct ShadingPassShader :public IShader {
 
 	virtual bool fragment(Vec4f& color)
 	{
-		Vec2i frag_idx((int)shade_point->screen_pos[0], (int)shade_point->screen_pos[1]);
-
 		Texture1b* status_buffer = (Texture1b*)buffers[3];
 		if (!status_buffer->get(frag_idx[0], frag_idx[1]))
 			return true;
@@ -221,8 +256,6 @@ struct SSAOShader :public IShader {
 
 	virtual void MRT()
 	{
-		Vec2i frag_idx((int)shade_point->screen_pos[0], (int)shade_point->screen_pos[1]);
-
 		Texture1b* status_buffer = (Texture1b*)buffers[3];
 		if (!status_buffer->get(frag_idx[0], frag_idx[1]))
 			return;
@@ -287,7 +320,7 @@ struct SkyBoxShader :public IShader {
 
 	virtual bool fragment(Vec4f& color)
 	{
-		Vec3f text = shade_point->values[0];
+		Vec3f text = get_values(0);
 		Vec3u color_u = skybox->get(text[0], text[1], text[2]);
 
 		color = Vec4f(color_u[0] / 255., color_u[1] / 255., color_u[2] / 255., 1);
@@ -310,8 +343,6 @@ struct ReflectShadingPassShader :public IShader {
 
 	virtual bool fragment(Vec4f& color)
 	{
-		Vec2i frag_idx((int)shade_point->screen_pos[0], (int)shade_point->screen_pos[1]);
-
 		Texture1b* status_buffer = (Texture1b*)buffers[3];
 		if (!status_buffer->get(frag_idx[0], frag_idx[1]))
 			return true;

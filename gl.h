@@ -5,50 +5,51 @@
 
 struct IShader {
 	Model* model;
-	Point* shade_point;
+	Point* triangle_points;
+	Vec3f frag_bar;
+	Vec2i frag_idx;
 	void** buffers;
 
-    virtual Point vertex(int iface, int nthvert) = 0;
-    virtual bool fragment(Vec4f& color) = 0;
+	virtual Point vertex(int iface, int nthvert) = 0;
+	virtual bool fragment(Vec4f& color) = 0;
 	virtual void MRT() {}
 
-	float ShadowCalculation(Vec4f fragPosLightSpace, Texture1f* shadowMap)
-	{
-		Vec3f projCoords = fragPosLightSpace.head(3) / fragPosLightSpace[3];
-		projCoords = projCoords * 0.5 + Vec3f(0.5, 0.5, 0.5);
-		float currentDepth = projCoords[2];
-		float bias = 0.005;
-		float shadow = 0.0;
-		Vec3f texelSize = shadowMap->texel_size();
-		for (int x = -1; x <= 1; ++x)
-		{
-			for (int y = -1; y <= 1; ++y)
-			{
-				float pcfDepth = shadowMap->get_by_uv(projCoords[0] + x * texelSize[0], projCoords[1] + y * texelSize[1]);
-				shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
-			}
-		}
-		shadow /= 9.0;
-
-		return shadow;
+	Vec4f get_clipping_pos() {
+		return frag_bar[0] * triangle_points[0].clipping_pos +
+			frag_bar[1] * triangle_points[1].clipping_pos +
+			frag_bar[2] * triangle_points[2].clipping_pos;
 	}
 
-	float SSAO_Blur(Texture1f* ao_buffer, Texture1b* status_buffer, int frag_x, int frag_y) {
-		float result = 0.0;
-		int count = 0;
-		for (int x = -2; x < 2; ++x)
-		{
-			for (int y = -2; y < 2; ++y)
-			{
-				int offset_x = frag_x + x;
-				int offset_y = frag_y + y;
-				if (status_buffer->get(offset_x, offset_y)) {
-					result += ao_buffer->get(offset_x, offset_y);
-					count++;
-				}
-			}
-		}
-		return result / count;
+	Vec3f get_ndc_pos() {
+		return frag_bar[0] * triangle_points[0].ndc_pos + 
+			frag_bar[1] * triangle_points[1].ndc_pos + 
+			frag_bar[2] * triangle_points[2].ndc_pos;
+	}
+
+	Vec3f get_screen_pos() {
+		return frag_bar[0] * triangle_points[0].screen_pos + 
+			frag_bar[1] * triangle_points[1].screen_pos + 
+			frag_bar[2] * triangle_points[2].screen_pos;
+	}
+
+	float get_origin_depth() {
+		return frag_bar[0] * triangle_points[0].clipping_pos[3] +
+			frag_bar[1] * triangle_points[1].clipping_pos[3] +
+			frag_bar[2] * triangle_points[2].clipping_pos[3];
+	}
+
+	float get_screen_depth() {
+		return frag_bar[0] * triangle_points[0].screen_pos[2] +
+			frag_bar[1] * triangle_points[1].screen_pos[2] +
+			frag_bar[2] * triangle_points[2].screen_pos[2];
+	}
+
+	Vec3f get_values(int idx) {
+		Vec3f result_d_z = frag_bar[0] * triangle_points[0].values[idx] / triangle_points[0].clipping_pos[3]
+			+ frag_bar[1] * triangle_points[1].values[idx] / triangle_points[1].clipping_pos[3]
+			+ frag_bar[2] * triangle_points[2].values[idx] / triangle_points[2].clipping_pos[3];
+		float depth = get_origin_depth();
+		return result_d_z * depth;
 	}
 };
 

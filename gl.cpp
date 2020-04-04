@@ -194,13 +194,14 @@ void Renderer::process(IShader* shader, Point* pts, Vec3f p) {
 	if (uv[0] < 0 || uv[1] < 0 || uv[2] < 0)
 		return;
 
-	Point point = Point::projection_correct_interpolation(pts, uv);
-	float depth = point.screen_pos[2];
-
+	Vec3f z_val(pts[0].screen_pos[2], pts[1].screen_pos[2], pts[2].screen_pos[2]);
+	float depth = uv.dot(z_val);
 	if (early_z_test && default_Buffer->depth_buffer->get(p[0], p[1]) < depth)
 		return;
 
-	shader->shade_point = &point;
+	shader->triangle_points = pts;
+	shader->frag_bar = uv;
+	shader->frag_idx = Vec2i(p[0], p[1]);
 	Vec4f color;
 	if (!shader->fragment(color))
 	{
@@ -244,9 +245,10 @@ void Renderer::msaa_process(IShader* shader, Point* pts, Vec3f p) {
 
 	Vec3f pixel(p[0] + 0.5, p[1] + 0.5, 0);
 	Vec3f uv = barycentric_gl(pts[0].screen_pos, pts[0].screen_pos, pts[0].screen_pos, pixel);
-	Point point = Point::projection_correct_interpolation(pts, uv);
 
-	shader->shade_point = &point;
+	shader->triangle_points = pts;
+	shader->frag_bar = uv;
+	shader->frag_idx = Vec2i(p[0], p[1]);
 	Vec4f color;
 	if (!shader->fragment(color))
 	{

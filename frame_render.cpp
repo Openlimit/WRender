@@ -100,7 +100,7 @@ void triangle_sweepline(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor 
 void FrameRender::init(int width, int height) {
 	frame_width = width;
 	frame_height = height;
-	rotate_speed = 0.2;
+	rotate_speed = 2;
 	dnear = 0.5;
 	dfar = 5;
 
@@ -304,8 +304,8 @@ void FrameRender::resize(int width, int height) {
 }
 
 void FrameRender::turn(float delta_x, float delta_y){
-	float theta_x = -2 * PI * delta_x / frame_width;
-	float theta_y = -2 * PI * delta_y / frame_height;
+	float theta_x = -rotate_speed * PI * delta_x / frame_height;
+	float theta_y = -rotate_speed * PI * delta_y / frame_height;
 	camera->turn(theta_x, theta_y);
 	update_view();
 }
