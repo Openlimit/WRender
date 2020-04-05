@@ -147,14 +147,13 @@ void FrameRender::init(int width, int height) {
 	geoShader->project_mat = project_mat;
 	geoShader->model_mat_IT = model_mat.inverse().transpose();
 
-	/*shadingShader = new ShadingPassShader();
+	shadingShader = new ShadingPassShader();
 	shadingShader->lights = lights;
 	shadingShader->viewPos = camera->get_camera_pos();
 	shadingShader->lightMats = lightMats;
-	shadingShader->shadowMaps = shadowMaps;*/
 
-	shadingShader = new ReflectShadingPassShader();
-	shadingShader->viewPos = camera->get_camera_pos();
+	/*shadingShader = new ReflectShadingPassShader();
+	shadingShader->viewPos = camera->get_camera_pos();*/
 
 	ssaoShader = new SSAOShader();
 	ssaoShader->project_mat = project_mat;
@@ -178,6 +177,7 @@ void FrameRender::generate_ShadowMap() {
 		renderer->get_zbuffer(shadowMaps[i]);
 	}
 	renderer->set_cullingMode(Renderer::BACK);
+	shadingShader->shadowMaps = shadowMaps;
 }
 
 void FrameRender::init_SSAO() {
@@ -242,7 +242,7 @@ void FrameRender::init_skybox() {
 	skyboxShader->project_mat = perspective(90 * PI / 180, 1, dnear, dfar);;
 	skyboxShader->skybox = skybox;
 
-	shadingShader->skybox = skybox;
+	//shadingShader->skybox = skybox;
 }
 
 void FrameRender::render() {
@@ -253,7 +253,7 @@ void FrameRender::render() {
 	renderer->render(model, geoShader, nullptr);
 
 	//renderer->clear_zbuffer();
-	//renderer->render(deffered_model, ssaoShader, screenBits);
+	//renderer->render(deffered_model, ssaoShader, nullptr);
 
 	renderer->clear_zbuffer();
 	renderer->render(deffered_model, shadingShader, screenBits);
@@ -299,8 +299,6 @@ void FrameRender::resize(int width, int height) {
 		shadowMaps[i] = new Texture1f(width, height);
 	}
 	generate_ShadowMap();
-
-	//shadingShader->shadowMaps = shadowMaps;
 }
 
 void FrameRender::turn(float delta_x, float delta_y){

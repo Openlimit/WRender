@@ -45,8 +45,8 @@ private:
 	Renderer* renderer;
 	DepthShader* depthShader;
 	GeometryPassShader* geoShader;
-	//ShadingPassShader* shadingShader;
-	ReflectShadingPassShader* shadingShader;
+	ShadingPassShader* shadingShader;
+	//ReflectShadingPassShader* shadingShader;
 	SSAOShader* ssaoShader;
 	SkyBoxShader* skyboxShader;
 

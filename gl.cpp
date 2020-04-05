@@ -22,7 +22,7 @@ Vec3f msaa_sample(Vec3f pixel, int s) {
 Renderer::Renderer(float _near, float _far, int _width, int _height, int _viewport_x, int _viewport_y, bool _use_msaa) :
 	dnear(_near), dfar(_far), screen_width(_width), screen_height(_height), 
 	early_z_test(true), z_test(true), z_write(true),
-	culling_face(true), cullingMode(BACK), MRT(false)
+	culling_face(true), cullingMode(BACK), MRT(false), gammaCorrect(false), toneMapping(false)
 {
 	if (_use_msaa) {
 		msaa_factor = MSAA_FACTOR;
@@ -35,58 +35,21 @@ Renderer::Renderer(float _near, float _far, int _width, int _height, int _viewpo
 	default_Buffer->depth_buffer->clear(FLT_MAX);
 	
 	viewport_mat = viewport(_viewport_x, _viewport_y, _width, _height);
-}
 
-bool Renderer::render(Model* model, IShader* shader, TGAImage& image)
-{
-	if (render(model, shader)) {
-		for (int i = 0; i < screen_height; i++)
-		{
-			for (int j = 0; j < screen_width; j++)
-			{
-				TGAColor color = resolve(j, i);
-				image.set(j, i, color);
-			}
-		}
-		return true;
-	}
-	else {
-		return false;
-	}
+	gamma_inv = 1 / 2.2;
 }
 
 bool Renderer::render(Model* model, IShader* shader, unsigned char* image)
 {
 	if (render(model, shader)) {
 		if (image != nullptr) {
-			for (int i = 0; i < screen_height; i++)
-			{
-				for (int j = 0; j < screen_width; j++)
-				{
-					TGAColor color = resolve(j, i);
-					int image_idx = (screen_height - i - 1) * screen_width + j;
-					image[image_idx * 3] = color.b;
-					image[image_idx * 3 + 1] = color.g;
-					image[image_idx * 3 + 2] = color.r;
-				}
-			}
+			post_process(image);
 		}
 		return true;
 	}
 	else {
 		return false;
 	}
-}
-
-TGAColor Renderer::resolve(int x, int y) {
-	Vec4i color(0, 0, 0, 0);//unsigned char可能溢出
-	for (int i = 0; i < msaa_factor; i++)
-	{
-		Vec4u cur_color = default_Buffer->color_buffer->get(x, y, i);
-		color += cur_color.cast<int>();
-	}
-	float w = 1.0 / msaa_factor;
-	return TGAColor(color[0] * w, color[1] * w, color[2] * w, color[3] * w);
 }
 
 bool Renderer::render(Model* model, IShader* shader) {
@@ -215,8 +178,7 @@ void Renderer::process(IShader* shader, Point* pts, Vec3f p) {
 			if (z_write)
 				default_Buffer->depth_buffer->set(p[0], p[1], 0, depth);
 
-			Vec4u colori = (color * 255).cast<unsigned char>();
-			default_Buffer->color_buffer->set(p[0], p[1], 0, colori);
+			default_Buffer->color_buffer->set(p[0], p[1], 0, color);
 			if (MRT)
 				shader->MRT();
 		}
@@ -263,11 +225,52 @@ void Renderer::msaa_process(IShader* shader, Point* pts, Vec3f p) {
 				if (z_write)
 					default_Buffer->depth_buffer->set(p[0], p[1], s, sample_z[s]);
 
-				Vec4u colori = (color * 255).cast<unsigned char>();
-				default_Buffer->color_buffer->set(p[0], p[1], s, colori);
+				default_Buffer->color_buffer->set(p[0], p[1], s, color);
 				if (MRT)
 					shader->MRT();
 			}
+		}
+	}
+}
+
+Vec4f Renderer::resolve(int x, int y) {
+	Vec4f color = Vec4f::Zero();
+	for (int i = 0; i < msaa_factor; i++)
+	{
+		color += default_Buffer->color_buffer->get(x, y, i);
+	}
+	color /= msaa_factor;
+	return color;
+}
+
+Vec4f Renderer::gamma_correct(Vec4f color) {
+	return Vec4f(std::powf(color[0], gamma_inv),
+		std::powf(color[1], gamma_inv),
+		std::powf(color[2], gamma_inv),
+		color[3]);
+}
+
+Vec4f Renderer::tone_mapping(Vec4f color) {
+	// Reinhard色调映射
+	return Vec4f(color[0] / (color[0] + 1), color[1] / (color[1] + 1), color[2] / (color[2] + 1), color[3]);
+}
+
+void Renderer::post_process(unsigned char* image) {
+	for (int x = 0; x < screen_width; x++)
+	{
+		for (int y = 0; y < screen_height; y++)
+		{
+			Vec4f color = resolve(x, y);
+
+			if (toneMapping)
+				color = tone_mapping(color);
+			if (gammaCorrect)
+				color = gamma_correct(color);
+
+			int image_idx = (screen_height - y - 1) * screen_width + x;
+			image[image_idx * 3] = color[2] * 255;
+			image[image_idx * 3 + 1] = color[1] * 255;
+			image[image_idx * 3 + 2] = color[0] * 255;
 		}
 	}
 }

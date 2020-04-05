@@ -55,14 +55,14 @@ struct IShader {
 
 struct FrameBuffer {
 	Texture1f* depth_buffer;
-	Texture4u* color_buffer;
+	Texture4f* color_buffer;
 	std::vector<void*> other_buffers;
 
 	FrameBuffer() = default;
 
 	FrameBuffer(int width, int height, int depth=1) {
 		depth_buffer = new Texture1f(width, height, depth);
-		color_buffer = new Texture4u(width, height, depth);
+		color_buffer = new Texture4f(width, height, depth);
 	}
 
 	void add_buffer(void* buffer) {
@@ -98,8 +98,6 @@ public:
 			delete G_Buffer;
 	}
 
-	bool render(Model* model, IShader* shader, TGAImage& image);
-
 	bool render(Model* model, IShader* shader, unsigned char* image);
 
 	void clear_zbuffer() {
@@ -134,6 +132,7 @@ public:
 
 	void set_ztest(bool v) { z_test = v; }
 	void set_zwrite(bool v) { z_write = v; }
+	void set_gammaCorrect(bool v) { gammaCorrect = v; }
 
 	void enable_deffered_rendering() {
 		assert(msaa_factor == 1);
@@ -231,6 +230,9 @@ private:
 	int screen_width, screen_height;
 	int msaa_factor;
 	
+	bool toneMapping;
+	float gamma_inv;
+	bool gammaCorrect;
 	bool early_z_test;
 	bool z_test;
 	bool z_write;
@@ -242,8 +244,6 @@ private:
 
 	bool render(Model* model, IShader* shader);
 
-	TGAColor resolve(int x, int y);
-
 	bool FaceCulling(Point* verts);
 
 	bool ClipCulling(Point* verts);
@@ -253,5 +253,13 @@ private:
 	void process(IShader* shader, Point* pts, Vec3f p);
 
 	void msaa_process(IShader* shader, Point* pts, Vec3f p);
+
+	Vec4f gamma_correct(Vec4f color);
+
+	Vec4f tone_mapping(Vec4f color);
+
+	Vec4f resolve(int x, int y);
+
+	void post_process(unsigned char* image);
 };
 

@@ -208,7 +208,7 @@ struct ShadingPassShader :public IShader {
 		Vec3f shade_color(0, 0, 0);
 		Vec4f fragPos4(fragPos[0], fragPos[1], fragPos[2], 1);
 		float ao = SSAO_Blur(ao_buffer, status_buffer, frag_idx[0], frag_idx[1]);
-		float ambient = 0.15 * ao;
+		float ambient = 0.3 * ao;
 		for (int i = 0; i < lights.size(); i++)
 		{
 			Vec3f l = lights[i]->light_dir(fragPos);
