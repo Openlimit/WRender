@@ -8,6 +8,7 @@ class Model
 public:
 	Model(const char* filename, const char* diffuse_filename = nullptr,
 		const char* normal_filename = nullptr, const char* specular_filename = nullptr);
+	Model() = default;
 	virtual ~Model();
 	int nverts();
 	int nfaces();
@@ -22,6 +23,11 @@ public:
 	Vec4f diffuse(Vec3f text_coord);
 	Vec3f normal(Vec3f text_coord);
 	float specular(Vec3f text_coord);
+
+	void add_vert(Vec3f vert);
+	void add_text(Vec3f text);
+	void add_normal(Vec3f normal);
+	void add_face(std::vector<Vec3i> &face);
 
 private:
 	std::vector<Vec3f> verts_;

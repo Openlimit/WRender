@@ -103,7 +103,11 @@ Vec4f Model::diffuse(Vec3f text_coord)
 	int width = diffuse_image->get_width();
 	int height = diffuse_image->get_height();
 	TGAColor color = diffuse_image->get(text_coord[0] * width, text_coord[1] * height);
-	return Vec4f(color.r / 255., color.g / 255., color.b / 255., color.a / 255.);
+	float gamma = 2.2;
+	return Vec4f(
+		std::powf(color.r / 255., gamma),
+		std::powf(color.g / 255., gamma),
+		std::powf(color.b / 255., gamma), color.a / 255.);
 }
 
 Vec3f Model::normal(Vec3f text_coord)
@@ -123,5 +127,21 @@ float Model::specular(Vec3f text_coord) {
 	Vec2i uv(text_coord[0] * specular_image->get_width(), text_coord[1] * specular_image->get_height());
 	float spec = specular_image->get(uv[0], uv[1])[0] / 1.f;
 	return spec;
+}
+
+void Model::add_vert(Vec3f vert) {
+	verts_.emplace_back(vert);
+}
+
+void Model::add_text(Vec3f text) {
+	texts_.emplace_back(text);
+}
+
+void Model::add_normal(Vec3f normal) {
+	normals_.emplace_back(normal);
+}
+
+void Model::add_face(std::vector<Vec3i>& face) {
+	faces_.emplace_back(face);
 }
 

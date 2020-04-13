@@ -105,7 +105,7 @@ void FrameRender::init(int width, int height) {
 	dfar = 5;
 
 	model_mat = Mat4f::Identity();
-	project_mat = perspective(60 * PI / 180, 1, dnear, dfar);
+	project_mat = perspective(60 * PI / 180, (float)width / (float)height, dnear, dfar);
 
 	model = new Model("obj/diablo3_pose.obj", "obj/diablo3_pose_diffuse.tga",
 		"obj/diablo3_pose_nm.tga", "obj/diablo3_pose_spec.tga");
@@ -239,7 +239,7 @@ void FrameRender::init_skybox() {
 	skyboxShader = new SkyBoxShader();
 	skyboxShader->view_mat= Mat4f::Identity();
 	skyboxShader->view_mat.topLeftCorner(3, 3) = view_mat.topLeftCorner(3, 3);
-	skyboxShader->project_mat = perspective(90 * PI / 180, 1, dnear, dfar);;
+	skyboxShader->project_mat = perspective(90 * PI / 180, (float)width / (float)height, dnear, dfar);
 	skyboxShader->skybox = skybox;
 
 	//shadingShader->skybox = skybox;
@@ -262,6 +262,8 @@ void FrameRender::render() {
 }
 
 void FrameRender::release() {
+	if (camera != nullptr)
+		delete camera;
 	if (model != nullptr)
 		delete model;
 	if (deffered_model != nullptr)
@@ -299,19 +301,6 @@ void FrameRender::resize(int width, int height) {
 		shadowMaps[i] = new Texture1f(width, height);
 	}
 	generate_ShadowMap();
-}
-
-void FrameRender::turn(float delta_x, float delta_y){
-	float theta_x = -rotate_speed * PI * delta_x / frame_height;
-	float theta_y = -rotate_speed * PI * delta_y / frame_height;
-	camera->turn(theta_x, theta_y);
-	update_view();
-}
-
-void FrameRender::zoom(float delta) {
-	float d = std::fmin(std::fmax(0.5, 1 - delta / 1200), 2);
-	camera->zoom(d);
-	update_view();
 }
 
 void FrameRender::update_view() {

@@ -150,16 +150,19 @@
     <ClCompile Include="GUI.cpp" />
     <ClCompile Include="frame_render.cpp" />
     <ClCompile Include="model.cpp" />
+    <ClCompile Include="PBRender.cpp" />
     <ClCompile Include="tgaimage.cpp" />
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="base_render.h" />
     <ClInclude Include="camera.h" />
     <ClInclude Include="geometry.h" />
     <ClInclude Include="gl.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="model.h" />
     <ClInclude Include="frame_render.h" />
+    <ClInclude Include="PBRender.h" />
     <ClInclude Include="shader.h" />
     <ClInclude Include="texture.h" />
     <ClInclude Include="tgaimage.h" />

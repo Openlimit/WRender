@@ -20,8 +20,7 @@ struct PointLight :public Light {
 
 	virtual float f_dist(Vec3f surface_pos) override {
 		float dist_2 = (position - surface_pos).squaredNorm();
-		float r_2 = position.squaredNorm();;
-		return r_2 / (dist_2 + 1e-2);
+		return 1. / (dist_2 + 1e-3);
 	}
 
 	virtual float f_dir(Vec3f l) override {
@@ -58,8 +57,7 @@ struct SpotLight :public Light {
 
 	virtual float f_dist(Vec3f surface_pos) override {
 		float dist_2 = (position - surface_pos).squaredNorm();
-		float r_2 = position.squaredNorm();;
-		return r_2 / (dist_2 + 1e-2);
+		return 1. / (dist_2 + 1e-3);
 	}
 
 	virtual float f_dir(Vec3f l) override {

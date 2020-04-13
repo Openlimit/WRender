@@ -1,30 +1,25 @@
 #pragma once
 #include "shader.h"
-#include "camera.h"
+#include "base_render.h"
 
-
-class FrameRender {
+class FrameRender:public BaseRender {
 public:
-	unsigned char* screenBits;
+	FrameRender() = default;
 
 	virtual ~FrameRender() {
 		release();
 	}
 
-	void init(int width, int height);
+	void init(int width, int height) override;
 
-	void render();
+	void render() override;
 
-	void release();
+	void release() override;
 
-	void resize(int width, int height);
-
-	void turn(float delta_x, float delta_y);
-
-	void zoom(float delta);
+	void resize(int width, int height) override;
 	
 private:
-	void update_view();
+	void update_view() override;
 
 	void generate_ShadowMap();
 
@@ -32,11 +27,8 @@ private:
 
 	void init_skybox();
 
-	int frame_width;
-	int frame_height;
 	float dnear;
 	float dfar;
-	float rotate_speed;
 
 	Model* model;
 	Model* deffered_model;
@@ -55,7 +47,6 @@ private:
 	std::vector<Texture1f*> shadowMaps;
 	TextureCube<Vec3u>* skybox;
 
-	Camera* camera;
 	Mat4f model_mat;
 	Mat4f view_mat;
 	Mat4f project_mat;

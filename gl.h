@@ -133,6 +133,11 @@ public:
 	void set_ztest(bool v) { z_test = v; }
 	void set_zwrite(bool v) { z_write = v; }
 	void set_gammaCorrect(bool v) { gammaCorrect = v; }
+	void set_toneMapping(bool v) { toneMapping = v; }
+	void set_cullingMode(CullingMode mode) {
+		cullingMode = mode;
+	}
+	void set_cullingFace(bool v) { culling_face = v; }
 
 	void enable_deffered_rendering() {
 		assert(msaa_factor == 1);
@@ -162,10 +167,6 @@ public:
 	void clear_deffered_rendering() {
 		assert(G_Buffer != nullptr && G_Buffer->other_buffers[3] != nullptr);
 		((Texture1b*)G_Buffer->other_buffers[3])->clear();
-	}
-
-	void set_cullingMode(CullingMode mode) {
-		cullingMode = mode;
 	}
 
 	void debug_GBuffer() {

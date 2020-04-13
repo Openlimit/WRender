@@ -36,6 +36,9 @@
     <ClCompile Include="utils.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="PBRender.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tgaimage.h">
@@ -69,6 +72,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="wr_math.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="base_render.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="PBRender.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

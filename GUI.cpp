@@ -1,11 +1,12 @@
 #include <windows.h>
 #include <cstdio>
 #include "frame_render.h"
+#include "PBRender.h"
 
-int SCREEN_WIDTH = 800;
-int SCREEN_HEIGHT = 600;
+int SCREEN_WIDTH = 512;
+int SCREEN_HEIGHT = 512;
 
-FrameRender *frameRender;
+BaseRender *render;
 bool willExit = false;
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -28,7 +29,7 @@ void initDIB(HDC dibDC, int width, int height) {
 	bmi.bmiHeader.biPlanes = 1;
 	bmi.bmiHeader.biBitCount = 24;
 	bmi.bmiHeader.biCompression = BI_RGB;
-	screenDIB = CreateDIBSection(NULL, &bmi, DIB_RGB_COLORS, (void**)&frameRender->screenBits, NULL, 0);
+	screenDIB = CreateDIBSection(NULL, &bmi, DIB_RGB_COLORS, (void**)&render->screenBits, NULL, 0);
 	dibBefore = (HBITMAP)SelectObject(dibDC, screenDIB);
 }
 void releaseDIB(HDC dibDC) {
@@ -86,7 +87,7 @@ void releasePalette() {
 }
 
 void killWindow(HWND hWnd, HINSTANCE hInstance, WNDCLASS wndClass) {
-	frameRender->release();
+	render->release();
 	DestroyWindow(hWnd);
 	UnregisterClass(wndClass.lpszClassName, hInstance);
 }
@@ -122,8 +123,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine,
 	swidth = SCREEN_WIDTH;
 	sheight = SCREEN_HEIGHT;
 
-	frameRender = new FrameRender();
-	frameRender->init(swidth, sheight);
+	//render = new FrameRender();
+	render = new PBRender();
+	render->init(swidth, sheight);
 
 	ShowWindow(hWnd, iCmdShow);
 	UpdateWindow(hWnd);
@@ -145,7 +147,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine,
 			}
 		}
 		else {
-			frameRender->render();
+			render->render();
 			BitBlt(hdc, 0, 0, swidth, sheight, dibDC, 0, 0, SRCCOPY);
 		}
 	}
@@ -162,7 +164,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
 	case WM_SIZE:
 		swidth = LOWORD(lParam); sheight = HIWORD(lParam);
-		frameRender->resize(LOWORD(lParam), HIWORD(lParam));
+		render->resize(LOWORD(lParam), HIWORD(lParam));
 		releaseDIB(dibDC);
 		initDIB(dibDC, LOWORD(lParam), HIWORD(lParam));
 		InvalidateRect(hWnd, NULL, FALSE);
@@ -183,12 +185,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			ptCur.y = HIWORD(lParam);
 			float delta_x = ptCur.x - ptPrevious.x;
 			float delta_y = ptCur.y - ptPrevious.y;
-			frameRender->turn(delta_x, delta_y);
+			render->turn(delta_x, delta_y);
 			ptPrevious = ptCur;
 		}
 		break;
 	case WM_MOUSEWHEEL:
-		frameRender->zoom(GET_WHEEL_DELTA_WPARAM(wParam));
+		render->zoom(GET_WHEEL_DELTA_WPARAM(wParam));
 		break;
 	//case WM_KEYDOWN:
 		//keyDown(wParam);
