@@ -14,6 +14,7 @@
 - 齐次裁剪（Homogeneous clipping）
 - 环境光遮蔽（SSAO）
 - 天空盒（SkyBox）
+- gamma校正和简单的tone mapping
 
 ### Dependences
 - Windows平台
