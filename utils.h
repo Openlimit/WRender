@@ -15,5 +15,9 @@ Vec3f lerp(Vec3f v1, Vec3f v2, float t);
 
 float smoothstep(float edge0, float edge1, float x);
 
+Vec3f bilinear(Vec3f* data, int width, int height, float u, float v);
+
+Vec4f bilinear(Vec4f* data, int width, int height, float u, float v);
+
 
 

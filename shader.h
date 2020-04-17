@@ -384,6 +384,7 @@ struct PBRShader :public IShader {
 	float ao;
 
 	std::vector<Light*> lights;
+	TextureCube<Vec4f>* irradiance_map_cube;
 
 	float DistributionGGX(Vec3f N, Vec3f H, float roughness)
 	{
@@ -423,6 +424,16 @@ struct PBRShader :public IShader {
 	Vec3f fresnelSchlick(float cosTheta, Vec3f F0)
 	{
 		return F0 + (Vec3f::Ones() - F0) * pow(1.0 - cosTheta, 5.0);
+	}
+
+	Vec3f fresnelSchlickRoughness(float cosTheta, Vec3f F0, float roughness)
+	{
+		Vec3f R = Vec3f::Constant(1 - roughness);
+		for (int i = 0; i < 3; i++)
+		{
+			R[i] = std::fmax(R[i], F0[i]);
+		}
+		return F0 + (R - F0) * pow(1.0 - cosTheta, 5.0);
 	}
 
 	virtual Point vertex(int iface, int nthvert)
@@ -479,13 +490,7 @@ struct PBRShader :public IShader {
 
 			// kS is equal to Fresnel
 			Vec3f kS = F;
-			// for energy conservation, the diffuse and specular light can't
-			// be above 1.0 (unless the surface emits light); to preserve this
-			// relationship the diffuse component (kD) should equal 1.0 - kS.
 			Vec3f kD = Vec3f::Ones() - kS;
-			// multiply kD by the inverse metalness such that only non-metals 
-			// have diffuse lighting, or a linear blend if partly metal (pure metals
-			// have no diffuse light).
 			kD *= 1.0 - metallic;
 
 			// scale light by NdotL
@@ -495,9 +500,18 @@ struct PBRShader :public IShader {
 			Lo += (kD.cwiseProduct(albedo) / PI + specular).cwiseProduct(radiance * NdotL);  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
 		}
 
-		// ambient lighting (note that the next IBL tutorial will replace 
-		// this ambient lighting with environment lighting).
-		Vec3f ambient = albedo * ao * 0.03; 
+		int idx;
+		float u, v;
+		irradiance_map_cube->get_idx_and_uv(N[0], N[1], N[2], idx, u, v);
+		Vec3f irradiance = bilinear(irradiance_map_cube->textures[idx]->data,
+			irradiance_map_cube->textures[idx]->width,
+			irradiance_map_cube->textures[idx]->height, u, v).head(3);
+
+		Vec3f kS = fresnelSchlickRoughness(std::fmax(N.dot(V), 0.0), F0, roughness);
+		Vec3f kD = Vec3f::Ones() - kS;
+		kD *= 1.0 - metallic;
+		Vec3f diffuse = irradiance.cwiseProduct(albedo);
+		Vec3f ambient = kD.cwiseProduct(diffuse) * ao;
 
 		Vec3f shading_color = ambient + Lo;
 
@@ -547,10 +561,111 @@ struct EquirectangularShader :public IShader {
 		text.normalize();
 
 		Vec2f uv = SampleSphericalMap(text);
-		Vec3f c = enviroment_map_hdr->get_by_uv(uv[0], uv[1]);
+		//Vec3f c = enviroment_map_hdr->get_by_uv(uv[0], uv[1]);
+		Vec3f c = bilinear(enviroment_map_hdr->data, enviroment_map_hdr->width, enviroment_map_hdr->height,
+			uv[0], uv[1]);
 
-		color = Vec4f(c[0] / (c[0] + 1), c[1] / (c[1] + 1), c[2] / (c[2] + 1), 1);
+		color = Vec4f(c[0], c[1], c[2], 1);
 		
+		return false;
+	}
+};
+
+struct EnviromentBoxShader :public IShader {
+	Mat4f view_mat;
+	Mat4f project_mat;
+	TextureCube<Vec4f>* skybox;
+
+	virtual Point vertex(int iface, int nthvert)
+	{
+		Vec3f vert = model->vert(iface, nthvert);
+		Vec4f vert4(vert[0], vert[1], vert[2], 1);
+
+		Point point;
+		point.clipping_pos = project_mat * view_mat * vert4;
+		point.clipping_pos[2] = point.clipping_pos[3];
+		point.values[0] = vert;
+		return point;
+	}
+
+	virtual bool fragment(Vec4f& color)
+	{
+		Vec3f text = get_values(0);
+		//Vec4f color_u = skybox->get(text[0], text[1], text[2]);
+		int idx;
+		float u, v;
+		skybox->get_idx_and_uv(text[0], text[1], text[2], idx, u, v);
+		Vec4f color_u = bilinear(skybox->textures[idx]->data, 
+			skybox->textures[idx]->width,
+			skybox->textures[idx]->height, u, v);
+
+		color = Vec4f(color_u[0] / (color_u[0] + 1),
+			color_u[1] / (color_u[1] + 1),
+			color_u[2] / (color_u[2] + 1), color_u[3]);
+
+		float gamma_inv = 1 / 2.2;
+		color = Vec4f(
+			std::powf(color[0], gamma_inv),
+			std::powf(color[1], gamma_inv),
+			std::powf(color[2], gamma_inv), color[3]);
+		return false;
+	}
+};
+
+struct IrradianceConvolutionShader :public IShader {
+	Mat4f view_mat;
+	Mat4f project_mat;
+	TextureCube<Vec4f>* enviroment_map_cube;
+
+	virtual Point vertex(int iface, int nthvert)
+	{
+		Vec3f vert = model->vert(iface, nthvert);
+		Vec4f vert4(vert[0], vert[1], vert[2], 1);
+
+		Point p;
+		p.clipping_pos = project_mat * view_mat * vert4;
+		p.values[0] = vert;
+		return p;
+	}
+
+	virtual bool fragment(Vec4f& color)
+	{
+		Vec3f normal = get_values(0);
+		normal.normalize();
+
+		Vec3f irradiance = Vec3f::Zero();
+
+		// tangent space calculation from origin point
+		Vec3f up(0.0, 1.0, 0.0);
+		Vec3f right = up.cross(normal);
+		up = normal.cross(right);
+
+		float sampleDelta = 0.025;
+		float nrSamples = 0.0;
+		int idx;
+		float u, v;
+		for (float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
+		{
+			for (float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
+			{
+				// spherical to cartesian (in tangent space)
+				Vec3f tangentSample = Vec3f(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+				// tangent space to world
+				Vec3f sampleVec = tangentSample[0] * right + tangentSample[1] * up + tangentSample[2] * normal;
+
+				enviroment_map_cube->get_idx_and_uv(sampleVec[0], sampleVec[1], sampleVec[2], idx, u, v);
+				Vec4f value = bilinear(enviroment_map_cube->textures[idx]->data,
+					enviroment_map_cube->textures[idx]->width,
+					enviroment_map_cube->textures[idx]->height, u, v);
+
+				irradiance += value.head(3) * cos(theta) * sin(theta);
+				nrSamples++;
+			}
+		}
+		irradiance = PI * irradiance * (1.0 / nrSamples);
+
+		color = Vec4f(irradiance[0], irradiance[1], irradiance[2], 1);
+
 		return false;
 	}
 };

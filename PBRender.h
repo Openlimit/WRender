@@ -26,6 +26,8 @@ private:
 
 	void init_enviroment_map();
 
+	void init_precompute_map();
+
 	Renderer* renderer;
 
 	float dnear;
@@ -38,9 +40,10 @@ private:
 	Model* skybox_model;
 
 	PBRShader* shader;
-	EquirectangularShader* etShader;
+	EnviromentBoxShader* skyboxShader;
 
 	Texture3f* enviroment_map_hdr;
-	TextureCube<Vec3f>* enviroment_map_cube;
+	TextureCube<Vec4f>* enviroment_map_cube;
+	TextureCube<Vec4f>* irradiance_map_cube;
 };
 

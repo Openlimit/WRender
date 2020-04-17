@@ -54,6 +54,18 @@ void PBRender::init(int width, int height) {
     shader->lights = lights;
 
     init_enviroment_map();
+
+    init_precompute_map();
+
+    skyboxShader = new EnviromentBoxShader();
+    skyboxShader->view_mat = Mat4f::Identity();
+    skyboxShader->view_mat.topLeftCorner(3, 3) = view_mat.topLeftCorner(3, 3);
+    skyboxShader->project_mat = perspective(90 * PI / 180, (float)width / (float)height, dnear, dfar);
+    skyboxShader->skybox = enviroment_map_cube;
+
+    skybox_model = new Model("obj/skybox_model.obj");
+
+    shader->irradiance_map_cube = irradiance_map_cube;
 }
 
 void PBRender::release() {
@@ -77,7 +89,7 @@ void PBRender::render() {
     renderer->clear_colorbuffer();
     renderer->clear_zbuffer();
 
-    /*int nrRows = 5;
+    int nrRows = 5;
     int nrColumns = 5;
     float spacing = 2.5;
     for (int row = 0; row < nrRows; ++row)
@@ -92,9 +104,9 @@ void PBRender::render() {
             shader->model_mat_IT = model_mat.inverse().transpose();
             renderer->render(model, shader, screenBits);
         }
-    }*/
+    }
 
-    renderer->render(skybox_model, etShader, screenBits);
+    renderer->render(skybox_model, skyboxShader, screenBits);
 }
 
 void PBRender::update_view() {
@@ -103,7 +115,7 @@ void PBRender::update_view() {
     shader->view_mat = view_mat;
     shader->viewPos = camera->get_camera_pos();
 
-    //etShader->view_mat.topLeftCorner(3, 3) = view_mat.topLeftCorner(3, 3);
+    skyboxShader->view_mat.topLeftCorner(3, 3) = view_mat.topLeftCorner(3, 3);
 }
 
 void PBRender::init_sphere() {
@@ -190,22 +202,67 @@ void PBRender::init_enviroment_map(){
         exit(-1);
     }
 
-    etShader = new EquirectangularShader();
+    EquirectangularShader* etShader = new EquirectangularShader();
     etShader->enviroment_map_hdr = enviroment_map_hdr;
-    etShader->view_mat = Mat4f::Identity();
-    etShader->view_mat.topLeftCorner(3, 3) = view_mat.topLeftCorner(3, 3);
-    etShader->project_mat = perspective(90 * PI / 180, 1, 0.1, 10);
+    etShader->project_mat = perspective(90. * PI / 180., 1, 0.1, 10);
 
-    skybox_model = new Model("obj/skybox_model.obj");
+    Model* enviroment_model = new Model("obj/enviroment_model.obj");
 
+    Camera* cameras[6];
+    cameras[0] = new Camera(Vec3f(0, 0, 0), Vec3f(1, 0, 0), Vec3f(0, -1, 0));
+    cameras[1] = new Camera(Vec3f(0, 0, 0), Vec3f(-1, 0, 0), Vec3f(0, -1, 0));
+    cameras[2] = new Camera(Vec3f(0, 0, 0), Vec3f(0, 1, 0), Vec3f(0, 0, 1));
+    cameras[3] = new Camera(Vec3f(0, 0, 0), Vec3f(0, -1, 0), Vec3f(0, 0, -1));
+    cameras[4] = new Camera(Vec3f(0, 0, 0), Vec3f(0, 0, 1), Vec3f(0, -1, 0));
+    cameras[5] = new Camera(Vec3f(0, 0, 0), Vec3f(0, 0, -1), Vec3f(0, -1, 0));
 
-    Mat4f captureViews[] =
+    Renderer etRenderer(dnear, dfar, 512, 512, 0, 0, false);
+    etRenderer.set_cullingFace(false);
+
+    enviroment_map_cube = new TextureCube<Vec4f>(512, 512);
+    for (int i = 0; i < 6; i++)
     {
-       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
-       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
-       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
-    };
+        etShader->view_mat = cameras[i]->get_view();
+        etRenderer.clear_colorbuffer();
+        etRenderer.clear_zbuffer();
+        etRenderer.render(enviroment_model, etShader, nullptr);
+        etRenderer.get_colorbuffer(enviroment_map_cube->textures[i]);
+        delete cameras[i];
+    }
+
+    delete enviroment_model;
+    delete etShader;
+}
+
+void PBRender::init_precompute_map() {
+    Camera* cameras[6];
+    cameras[0] = new Camera(Vec3f(0, 0, 0), Vec3f(1, 0, 0), Vec3f(0, -1, 0));
+    cameras[1] = new Camera(Vec3f(0, 0, 0), Vec3f(-1, 0, 0), Vec3f(0, -1, 0));
+    cameras[2] = new Camera(Vec3f(0, 0, 0), Vec3f(0, 1, 0), Vec3f(0, 0, 1));
+    cameras[3] = new Camera(Vec3f(0, 0, 0), Vec3f(0, -1, 0), Vec3f(0, 0, -1));
+    cameras[4] = new Camera(Vec3f(0, 0, 0), Vec3f(0, 0, 1), Vec3f(0, -1, 0));
+    cameras[5] = new Camera(Vec3f(0, 0, 0), Vec3f(0, 0, -1), Vec3f(0, -1, 0));
+
+    Renderer irRenderer(dnear, dfar, 32, 32, 0, 0, false);
+    irRenderer.set_cullingFace(false);
+
+    IrradianceConvolutionShader* irShader = new IrradianceConvolutionShader();
+    irShader->enviroment_map_cube = enviroment_map_cube;
+    irShader->project_mat = perspective(90. * PI / 180., 1, 0.1, 10);
+
+    Model* enviroment_model = new Model("obj/enviroment_model.obj");
+
+    irradiance_map_cube = new TextureCube<Vec4f>(32, 32);
+    for (int i = 0; i < 6; i++)
+    {
+        irShader->view_mat = cameras[i]->get_view();
+        irRenderer.clear_colorbuffer();
+        irRenderer.clear_zbuffer();
+        irRenderer.render(enviroment_model, irShader, nullptr);
+        irRenderer.get_colorbuffer(irradiance_map_cube->textures[i]);
+        delete cameras[i];
+    }
+
+    delete enviroment_model;
+    delete irShader;
 }

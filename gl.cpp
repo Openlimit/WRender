@@ -168,7 +168,6 @@ void Renderer::process(IShader* shader, Point* pts, Vec3f p) {
 	Vec4f color;
 	if (!shader->fragment(color))
 	{
-		
 		bool z_passing = true;
 		if (z_test)
 			z_passing = default_Buffer->depth_buffer->get(p[0], p[1]) > depth;

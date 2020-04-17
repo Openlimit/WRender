@@ -108,7 +108,7 @@ public:
 		default_Buffer->color_buffer->clear();
 	}
 
-	void get_zbuffer(Texture1f* _zbuffer) { 
+	void get_zbuffer(Texture1f* zbuffer) { 
 		if (msaa_factor > 1) {
 			for (int i = 0; i < screen_height; i++)
 			{
@@ -121,12 +121,28 @@ public:
 						if (z > t_z)
 							z = t_z;
 					}
-					_zbuffer->set(j, i, 0, z);
+					zbuffer->set(j, i, 0, z);
 				}
 			}
 		}
 		else {
-			default_Buffer->depth_buffer->copyTo(_zbuffer);
+			default_Buffer->depth_buffer->copyTo(zbuffer);
+		}
+	}
+
+	void get_colorbuffer(Texture4f* color_buffer) {
+		if (msaa_factor > 1) {
+			for (int y = 0; y < screen_height; y++)
+			{
+				for (int x = 0; x < screen_width; x++)
+				{
+					Vec4f color = resolve(x, y);
+					color_buffer->set(x, y, 0, color);
+				}
+			}
+		}
+		else {
+			default_Buffer->color_buffer->copyTo(color_buffer);
 		}
 	}
 

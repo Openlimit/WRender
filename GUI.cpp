@@ -3,8 +3,8 @@
 #include "frame_render.h"
 #include "PBRender.h"
 
-int SCREEN_WIDTH = 512;
-int SCREEN_HEIGHT = 512;
+int SCREEN_WIDTH = 800;
+int SCREEN_HEIGHT = 800;
 
 BaseRender *render;
 bool willExit = false;
