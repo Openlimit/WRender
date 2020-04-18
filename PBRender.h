@@ -1,6 +1,6 @@
 #pragma once
 #include "base_render.h"
-#include "shader.h"
+#include "pbr_shader.h"
 
 class PBRender:public BaseRender
 {
@@ -26,7 +26,11 @@ private:
 
 	void init_enviroment_map();
 
-	void init_precompute_map();
+	void init_irradiance_map();
+
+	void init_prefilter_map();
+
+	void init_LUT_map();
 
 	Renderer* renderer;
 
@@ -38,6 +42,8 @@ private:
 
 	Model* model;
 	Model* skybox_model;
+	Model* enviroment_model;
+	Model* deffered_model;
 
 	PBRShader* shader;
 	EnviromentBoxShader* skyboxShader;
@@ -45,5 +51,9 @@ private:
 	Texture3f* enviroment_map_hdr;
 	TextureCube<Vec4f>* enviroment_map_cube;
 	TextureCube<Vec4f>* irradiance_map_cube;
+	TextureCube<Vec4f>* prefilter_map_cube;
+	Texture4f* LUT_map;
+
+	int maxMipLevels;
 };
 

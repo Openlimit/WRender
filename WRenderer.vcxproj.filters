@@ -1,84 +1,100 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="源文件">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="头文件">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
-    </Filter>
     <Filter Include="资源文件">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{d104f479-1b07-407e-ae82-e868a8d60a35}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gl">
+      <UniqueIdentifier>{3ffbb593-5a4e-4b8a-9058-ec0df9b5e060}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="render">
+      <UniqueIdentifier>{814086df-0b2a-4180-821f-20ed78adeb5c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tools">
+      <UniqueIdentifier>{7f8a65a0-9ef7-4981-b600-69a05f18d7eb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GUI">
+      <UniqueIdentifier>{f13610fb-8eb9-496b-80db-da5196733b6b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="math">
+      <UniqueIdentifier>{d8a626ae-fc46-4060-b19f-8f0dc0854cee}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="tgaimage.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="model.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="geometry.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="gl.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="GUI.cpp">
-      <Filter>源文件</Filter>
+      <Filter>gl</Filter>
     </ClCompile>
     <ClCompile Include="frame_render.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="utils.cpp">
-      <Filter>源文件</Filter>
+      <Filter>render</Filter>
     </ClCompile>
     <ClCompile Include="PBRender.cpp">
-      <Filter>源文件</Filter>
+      <Filter>render</Filter>
+    </ClCompile>
+    <ClCompile Include="utils.cpp">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="model.cpp">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="tgaimage.cpp">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="GUI.cpp">
+      <Filter>GUI</Filter>
+    </ClCompile>
+    <ClCompile Include="geometry.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="texture.cpp">
+      <Filter>tools</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="tgaimage.h">
-      <Filter>头文件</Filter>
+    <ClInclude Include="shader.h">
+      <Filter>shaders</Filter>
     </ClInclude>
-    <ClInclude Include="geometry.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="model.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="camera.h">
-      <Filter>头文件</Filter>
+    <ClInclude Include="pbr_shader.h">
+      <Filter>shaders</Filter>
     </ClInclude>
     <ClInclude Include="gl.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="shader.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="frame_render.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="utils.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Light.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="texture.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="wr_math.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="base_render.h">
-      <Filter>头文件</Filter>
+      <Filter>gl</Filter>
     </ClInclude>
     <ClInclude Include="PBRender.h">
-      <Filter>头文件</Filter>
+      <Filter>render</Filter>
+    </ClInclude>
+    <ClInclude Include="frame_render.h">
+      <Filter>render</Filter>
+    </ClInclude>
+    <ClInclude Include="base_render.h">
+      <Filter>render</Filter>
+    </ClInclude>
+    <ClInclude Include="camera.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="utils.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="Light.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="model.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="texture.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="tgaimage.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="geometry.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="wr_math.h">
+      <Filter>math</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

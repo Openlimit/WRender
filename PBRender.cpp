@@ -1,5 +1,7 @@
 #include "PBRender.h"
 #include <stb_image.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
 
 void PBRender::init(int width, int height) {
     frame_width = width;
@@ -9,7 +11,6 @@ void PBRender::init(int width, int height) {
     dfar = 100;
 
     renderer = new Renderer(dnear, dfar, width, height, 0, 0, false);
-    renderer->set_cullingFace(false);
 
     model_mat = Mat4f::Identity();
     project_mat = perspective(60. * PI / 180, (float)width / (float)height, dnear, dfar);
@@ -53,9 +54,19 @@ void PBRender::init(int width, int height) {
 
     shader->lights = lights;
 
+    enviroment_model = new Model("obj/enviroment_model.obj");
+    skybox_model = new Model("obj/skybox_model.obj");
+    deffered_model = new Model("obj/deffered_model.obj");
+
+    maxMipLevels = 5;
+
     init_enviroment_map();
 
-    init_precompute_map();
+    init_irradiance_map();
+
+    init_prefilter_map();
+
+    init_LUT_map();
 
     skyboxShader = new EnviromentBoxShader();
     skyboxShader->view_mat = Mat4f::Identity();
@@ -63,23 +74,44 @@ void PBRender::init(int width, int height) {
     skyboxShader->project_mat = perspective(90 * PI / 180, (float)width / (float)height, dnear, dfar);
     skyboxShader->skybox = enviroment_map_cube;
 
-    skybox_model = new Model("obj/skybox_model.obj");
-
     shader->irradiance_map_cube = irradiance_map_cube;
+    shader->prefilter_map_cube = prefilter_map_cube;
+    shader->LUT_map = LUT_map;
 }
 
 void PBRender::release() {
 	if (model != nullptr)
 		delete model;
+    if (enviroment_model != nullptr)
+        delete enviroment_model;
+    if (skybox_model != nullptr)
+        delete skybox_model;
+    if (deffered_model != nullptr)
+        delete deffered_model;
 	if (camera != nullptr)
 		delete camera;
+    if (enviroment_map_hdr != nullptr)
+        delete enviroment_map_hdr;
+    if (enviroment_map_cube != nullptr)
+        delete enviroment_map_cube;
+    if (irradiance_map_cube != nullptr)
+        delete irradiance_map_cube;
+    if (prefilter_map_cube != nullptr)
+        delete prefilter_map_cube;
+    if (LUT_map != nullptr)
+        delete LUT_map;
+    if (renderer != nullptr)
+        delete renderer;
+    if (shader != nullptr)
+        delete shader;
+    if (skyboxShader != nullptr)
+        delete skyboxShader;
 }
 
 void PBRender::resize(int width, int height) {
 	if (renderer != nullptr)
 		delete renderer;
 	renderer = new Renderer(dnear, dfar, width, height, 0, 0, false);
-    renderer->set_cullingFace(false);
 
 	frame_width = width;
 	frame_height = height;
@@ -156,8 +188,8 @@ void PBRender::init_sphere() {
                 Vec3i i2(n2, n2, n2);
                 Vec3i i3(n3, n3, n3);
 
-                std::vector<Vec3i> face1 = { i0, i1, i2 };
-                std::vector<Vec3i> face2 = { i2, i1, i3 };
+                std::vector<Vec3i> face1 = { i2, i1, i0 };
+                std::vector<Vec3i> face2 = { i3, i1, i2 };
                 model->add_face(face1);
                 model->add_face(face2);
             }
@@ -176,8 +208,8 @@ void PBRender::init_sphere() {
                 Vec3i i2(n2, n2, n2);
                 Vec3i i3(n3, n3, n3);
 
-                std::vector<Vec3i> face1 = { i0, i1, i2 };
-                std::vector<Vec3i> face2 = { i2, i1, i3 };
+                std::vector<Vec3i> face1 = { i2, i1, i0 };
+                std::vector<Vec3i> face2 = { i3, i1, i2 };
                 model->add_face(face1);
                 model->add_face(face2);
             }
@@ -187,6 +219,7 @@ void PBRender::init_sphere() {
 }
 
 void PBRender::init_enviroment_map(){
+    printf("init enviroment_map");
     stbi_set_flip_vertically_on_load(true);
     int width, height, nrComponents;
     float* data = stbi_loadf("obj/newport_loft.hdr", &width, &height, &nrComponents, 0);
@@ -205,8 +238,6 @@ void PBRender::init_enviroment_map(){
     EquirectangularShader* etShader = new EquirectangularShader();
     etShader->enviroment_map_hdr = enviroment_map_hdr;
     etShader->project_mat = perspective(90. * PI / 180., 1, 0.1, 10);
-
-    Model* enviroment_model = new Model("obj/enviroment_model.obj");
 
     Camera* cameras[6];
     cameras[0] = new Camera(Vec3f(0, 0, 0), Vec3f(1, 0, 0), Vec3f(0, -1, 0));
@@ -229,12 +260,14 @@ void PBRender::init_enviroment_map(){
         etRenderer.get_colorbuffer(enviroment_map_cube->textures[i]);
         delete cameras[i];
     }
+    generateMipmap(enviroment_map_cube, maxMipLevels);
 
-    delete enviroment_model;
     delete etShader;
+    printf("init enviroment_map done");
 }
 
-void PBRender::init_precompute_map() {
+void PBRender::init_irradiance_map() {
+    printf("init irradiance_map");
     Camera* cameras[6];
     cameras[0] = new Camera(Vec3f(0, 0, 0), Vec3f(1, 0, 0), Vec3f(0, -1, 0));
     cameras[1] = new Camera(Vec3f(0, 0, 0), Vec3f(-1, 0, 0), Vec3f(0, -1, 0));
@@ -250,8 +283,6 @@ void PBRender::init_precompute_map() {
     irShader->enviroment_map_cube = enviroment_map_cube;
     irShader->project_mat = perspective(90. * PI / 180., 1, 0.1, 10);
 
-    Model* enviroment_model = new Model("obj/enviroment_model.obj");
-
     irradiance_map_cube = new TextureCube<Vec4f>(32, 32);
     for (int i = 0; i < 6; i++)
     {
@@ -263,6 +294,82 @@ void PBRender::init_precompute_map() {
         delete cameras[i];
     }
 
-    delete enviroment_model;
     delete irShader;
+    printf("init irradiance_map done");
+}
+
+void PBRender::init_prefilter_map() {
+    printf("init prefilter_map");
+    Camera* cameras[6];
+    cameras[0] = new Camera(Vec3f(0, 0, 0), Vec3f(1, 0, 0), Vec3f(0, -1, 0));
+    cameras[1] = new Camera(Vec3f(0, 0, 0), Vec3f(-1, 0, 0), Vec3f(0, -1, 0));
+    cameras[2] = new Camera(Vec3f(0, 0, 0), Vec3f(0, 1, 0), Vec3f(0, 0, 1));
+    cameras[3] = new Camera(Vec3f(0, 0, 0), Vec3f(0, -1, 0), Vec3f(0, 0, -1));
+    cameras[4] = new Camera(Vec3f(0, 0, 0), Vec3f(0, 0, 1), Vec3f(0, -1, 0));
+    cameras[5] = new Camera(Vec3f(0, 0, 0), Vec3f(0, 0, -1), Vec3f(0, -1, 0));
+
+    PrefilterShader* preShader = new PrefilterShader();
+    preShader->enviroment_map_cube = enviroment_map_cube;
+    preShader->project_mat = perspective(90. * PI / 180., 1, 0.1, 10);
+
+    prefilter_map_cube = new TextureCube<Vec4f>(128, 128);
+    generateMipmapWithoutInit(prefilter_map_cube, maxMipLevels);
+    for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+    {
+        unsigned int mipWidth = 128 * std::pow(0.5, mip);
+        unsigned int mipHeight = 128 * std::pow(0.5, mip);
+        Renderer render(dnear, dfar, mipWidth, mipHeight, 0, 0, false);
+        render.set_cullingFace(false);
+        
+        Texture4f* colors = new Texture4f(mipWidth, mipHeight);
+        preShader->roughness = (float)mip / (float)(maxMipLevels - 1);
+        for (unsigned int i = 0; i < 6; ++i)
+        {
+            preShader->view_mat = cameras[i]->get_view();
+            render.clear_colorbuffer();
+            render.clear_zbuffer();
+            render.render(enviroment_model, preShader, nullptr);
+            render.get_colorbuffer(colors);
+            prefilter_map_cube->textures[i]->initMipmap_from_data(colors->data, mip);
+        }
+        delete colors;
+    }
+
+    delete preShader;
+    for (int i = 0; i < 6; i++)
+    {
+        delete cameras[i];
+    }
+    printf("init prefilter_map done");
+}
+
+void PBRender::init_LUT_map() {
+    printf("init LUT_map");
+
+    Renderer render(dnear, dfar, 512, 512, 0, 0, false);
+    render.set_cullingFace(false);
+
+    LUTShader* lutShader = new LUTShader();
+    LUT_map = new Texture4f(512, 512);
+
+    render.render(deffered_model, lutShader, nullptr);
+    render.get_colorbuffer(LUT_map);
+
+    /*unsigned char* image = new unsigned char[512 * 512 * 3];
+    for (int i = 0; i < 512; i++)
+    {
+        for (int j = 0; j < 512; j++)
+        {
+            Vec4f v = LUT_map->get(i, j);
+            image[(j * 512 + i) * 3] = v[0] * 255;
+            image[(j * 512 + i) * 3 + 1] = v[1] * 255;
+            image[(j * 512 + i) * 3 + 2] = v[2] * 255;
+        }
+    }
+    
+    stbi_flip_vertically_on_write(true);
+    stbi_write_png("obj/LUT.png", 512, 512, 3, image, 0);*/
+
+    delete lutShader;
+    printf("init LUT_map done");
 }

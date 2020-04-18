@@ -3,7 +3,7 @@
 
 template<class T>
 struct Texture{
-    Texture(int width, int height, int depth = 1) :width(width), height(height), depth(depth)
+    Texture(int width, int height, int depth = 1) :width(width), height(height), depth(depth), maxMipLevel(0)
     {
         data = new T[width * height * depth];
     }
@@ -11,6 +11,12 @@ struct Texture{
     virtual ~Texture() {
         if (data != nullptr)
             delete data;
+        if (maxMipLevel > 0) {
+            for (int i = 1; i < mipmap_datas.size(); i++)
+            {
+                delete mipmap_datas[i];
+            }
+        }
     }
 
     T& operator[](int idx) {
@@ -67,6 +73,13 @@ struct Texture{
         memcpy(other->data, data, sizeof(T) * width * height * depth);
     }
 
+    void initMipmap_from_data(T* _data, int mipLevel) {
+        assert(maxMipLevel > mipLevel);
+        int mipWidth = width * std::pow(0.5, mipLevel);
+        int mipHeight = height * std::pow(0.5, mipLevel);
+        memcpy(mipmap_datas[mipLevel], _data, sizeof(T) * mipWidth * mipHeight);
+    }
+
     void init_from_data(T* _data) {
         memcpy(data, _data, sizeof(T) * width * height * depth);
     }
@@ -75,6 +88,9 @@ struct Texture{
     int height;
     int depth;
     T* data;
+
+    int maxMipLevel;
+    std::vector<T*> mipmap_datas;
 };
 
 template<class T>
@@ -220,3 +236,13 @@ typedef Texture<Vec4f> Texture4f;
 typedef Texture<Vec4u> Texture4u;
 typedef Texture<bool> Texture1b;
 
+Vec4f get_textureCube(TextureCube<Vec4f>* texture_cube, Vec3f text);
+Vec4f get_textureCubeLod(TextureCube<Vec4f>* texture_cube, Vec3f text, float mipLevel);
+Vec3f get_texture2D(Texture3f* texture, float u, float v);
+Vec4f get_texture2D(Texture4f* texture, float u, float v);
+Vec4f get_texture2DLod(Texture4f* texture, float u, float v, float mipLevel);
+
+void generateMipmap(Texture4f* texture, int _maxMipLevel);
+void generateMipmap(TextureCube<Vec4f>* texture_cube, int maxMipLevel);
+void generateMipmapWithoutInit(Texture4f* texture, int maxMipLevel);
+void generateMipmapWithoutInit(TextureCube<Vec4f>* texture_cube, int maxMipLevel);

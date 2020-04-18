@@ -268,6 +268,8 @@ void FrameRender::release() {
 		delete model;
 	if (deffered_model != nullptr)
 		delete deffered_model;
+	if (skybox_model != nullptr)
+		delete skybox_model;
 	if (renderer != nullptr)
 		delete renderer;
 	if (depthShader != nullptr)
@@ -282,7 +284,14 @@ void FrameRender::release() {
 	{
 		if (lights[i] != nullptr)
 			delete lights[i];
+		if (shadowMaps[i] != nullptr)
+			delete shadowMaps[i];
 	}
+
+	if (skyboxShader != nullptr)
+		delete skyboxShader;
+	if (skybox != nullptr)
+		delete skybox;
 }
 
 void FrameRender::resize(int width, int height) {
