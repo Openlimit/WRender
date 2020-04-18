@@ -21,3 +21,4 @@
 ### Dependences
 - Windows平台
 - Eigen
+- stb_image
