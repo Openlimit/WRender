@@ -15,6 +15,8 @@
 - 环境光遮蔽（SSAO）
 - 天空盒（SkyBox）
 - gamma校正和简单的tone mapping
+- Physically based rendering（PBR）
+- Image-based lighting（IBL）
 
 ### Dependences
 - Windows平台
