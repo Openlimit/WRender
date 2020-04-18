@@ -1,9 +1,11 @@
 # WRender
 一个简单的CPU光栅化渲染器
-
-<img src="image/dbl.jpg" width = "250" height = "250" align=center />
-<img src="image/pbr.jpg" width = "250" height = "250" align=center />
-
+<table>
+<tr>
+    <td><center><img src="image/dbl.jpg"></center></td>
+    <td><center><img src="image/pbr.jpg"></center></td>
+</tr>
+</table>
  
 ### 功能特性：
 - 透视插值（Perspective correct interpolation）
