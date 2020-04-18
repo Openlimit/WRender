@@ -123,8 +123,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine,
 	swidth = SCREEN_WIDTH;
 	sheight = SCREEN_HEIGHT;
 
-	//render = new FrameRender();
-	render = new PBRender();
+	render = new FrameRender();
+	//render = new PBRender();
 	render->init(swidth, sheight);
 
 	ShowWindow(hWnd, iCmdShow);

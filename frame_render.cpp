@@ -115,6 +115,7 @@ void FrameRender::init(int width, int height) {
 	skybox_model = new Model("obj/skybox_model.obj");
 	renderer = new Renderer(dnear, dfar, width, height, 0, 0, false);
 	renderer->enable_deffered_rendering();
+	renderer->set_gammaCorrect(true);
 
 	PointLight* light1 = new PointLight();
 	light1->position = Vec3f(1, 1, 2);
@@ -299,6 +300,7 @@ void FrameRender::resize(int width, int height) {
 		delete renderer;
 	renderer = new Renderer(dnear, dfar, width, height, 0, 0, false);
 	renderer->enable_deffered_rendering();
+	renderer->set_gammaCorrect(true);
 
 	frame_width = width;
 	frame_height = height;

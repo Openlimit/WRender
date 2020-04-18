@@ -125,7 +125,7 @@ Vec3f Model::normal(Vec3f text_coord)
 
 float Model::specular(Vec3f text_coord) {
 	Vec2i uv(text_coord[0] * specular_image->get_width(), text_coord[1] * specular_image->get_height());
-	float spec = specular_image->get(uv[0], uv[1])[0] / 1.f;
+	float spec = specular_image->get(uv[0], uv[1])[0];
 	return spec;
 }
 
